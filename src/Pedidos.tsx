@@ -11,6 +11,14 @@ import { api } from './api';
 import { pode } from './store';
 
 const COLS: StatusPedido[] = ['pcp', 'fila', 'producao', 'pronto', 'expedido'];
+const VAZIO_COL: Record<StatusPedido, string> = {
+  pcp: 'Nenhum pedido esperando o PCP.',
+  fila: 'Nenhum pedido na fila.',
+  producao: 'Nada em produção agora.',
+  pronto: 'Nenhum pedido pronto para expedir.',
+  expedido: 'Nenhum pedido expedido ainda.',
+};
+const ABA_COL: Record<StatusPedido, string> = { pcp: 'PCP', fila: 'Fila', producao: 'Produção', pronto: 'Pronto', expedido: 'Expedido' };
 
 export function PedidosView() {
   const { e, abrirPedido, perfil } = useApp();
@@ -66,7 +74,7 @@ export function PedidosView() {
       <div className="kan-tabs seg" role="tablist">
         {COLS.map((c) => (
           <button key={c} aria-pressed={colMob === c} onClick={() => setColMob(c)}>
-            {STATUS_PED[c].label.replace(' de produção', '').replace(' p/ expedição', '')} · {grupos[c].length}
+            {ABA_COL[c]} · {grupos[c].length}
           </button>
         ))}
       </div>
@@ -86,8 +94,8 @@ export function PedidosView() {
               {lista.map((p) => (
                 <CardPedido key={p.id} p={p} pos={c === 'expedido' || c === 'pronto' ? null : posFila(p.id)} onClick={() => abrirPedido(p.id)} />
               ))}
-              {c === 'expedido' && grupos[c].length > 8 && <div className="muted" style={{ fontSize: 12, padding: '2px 4px' }}>e mais {grupos[c].length - 8} expedidos</div>}
-              {!lista.length && <div className="empty">Nenhum pedido aqui.</div>}
+              {c === 'expedido' && grupos[c].length > 8 && <div className="col-mais">e mais {grupos[c].length - 8} expedidos</div>}
+              {!lista.length && <div className="col-vazio">{q ? 'Nenhum pedido com essa busca.' : VAZIO_COL[c]}</div>}
             </section>
           );
         })}
@@ -107,8 +115,7 @@ function CardPedido({ p, pos, onClick }: { p: Pedido; pos: number | null; onClic
       <div className="pcard-top">
         {pos && <span className="prio" title="Posição na fila de prioridade">{pos}º</span>}
         <span className="nped">#{p.numero}</span>
-        
-        <span className="sp num muted" style={{ fontSize: 12 }}>{fmtVol(volumePedido(p))}</span>
+        <span className="sp">{fmtVol(volumePedido(p))}</span>
       </div>
       <div className="cli">{titulo(p.fantasia)}</div>
       <div className="meta">
@@ -118,10 +125,14 @@ function CardPedido({ p, pos, onClick }: { p: Pedido; pos: number | null; onClic
       </div>
       {(st === 'fila' || st === 'producao') && <ProgressoOPs e={e} p={p} />}
       <div className="est">
-        <span className="muted">
-          {st === 'pcp' || st === 'pronto' || st === 'expedido' ? '' : 'Estimativa '}
-          <b>{estimativaTexto(e, p, est, agora)}</b>
-        </span>
+        {st === 'pcp' ? (
+          <span>aguarda o PCP</span>
+        ) : (
+          <span>
+            {st === 'pronto' || st === 'expedido' ? '' : 'Estimativa '}
+            <b>{estimativaTexto(e, p, est, agora)}</b>
+          </span>
+        )}
         {st !== 'expedido' && <PrazoChip p={p} />}
       </div>
     </button>
@@ -184,9 +195,9 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal onClose={onClose} wide label="Importar pedidos">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <h2>Importar pedidos do PDF</h2>
-        <button className="btn ghost icon" style={{ marginLeft: 'auto' }} onClick={onClose} aria-label="Fechar">
+      <div className="modal-topo">
+        <div><h2>Importar pedidos do PDF</h2></div>
+        <button className="btn ghost icon" onClick={onClose} aria-label="Fechar">
           <Icon n="x" />
         </button>
       </div>
@@ -215,8 +226,8 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
       {lidos.map((l, k) => {
         if (!l.ped)
           return (
-            <div key={k} className="chip crit" style={{ whiteSpace: 'normal', padding: '8px 12px', borderRadius: 8 }}>
-              <Icon n="alert" s={14} /> {l.arquivo}: {l.erro}
+            <div key={k} className="aviso crit">
+              <Icon n="alert" s={14} /> <span>{l.arquivo}: {l.erro}</span>
             </div>
           );
         const ped = l.ped;
@@ -225,14 +236,14 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
         const prods = [...new Set(ped.itens.map((i) => i.produtoId))];
         const novos = prods.filter((id) => !e.produtos[id]);
         return (
-          <div key={k} className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div key={k} className="panel imp-ped">
+            <div className="imp-topo">
               <span className="mono" style={{ fontWeight: 600, fontSize: 15 }}>#{ped.numero}</span>
               <b style={{ fontSize: 15 }}>{titulo(ped.fantasia || ped.cliente)}</b>
               {dup ? <span className="chip crit">Já existe no sistema</span> : <span className="chip ok"><Icon n="check" s={12} w={2.6} /> Lido</span>}
-              <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{l.arquivo}</span>
+              <span className="arq">{l.arquivo}</span>
             </div>
-            <dl className="kv" style={{ margin: 0 }}>
+            <dl className="kv">
               <div><dt>Cliente</dt><dd>{titulo(ped.cliente)}</dd></div>
               <div><dt>Cidade</dt><dd>{titulo(ped.cidade)}/{ped.uf}</dd></div>
               <div><dt>Vendedor</dt><dd>{titulo(ped.vendedor)}</dd></div>
@@ -244,11 +255,11 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
               </div>
             </dl>
             {novos.length > 0 && (
-              <span className="chip warn" style={{ whiteSpace: 'normal', borderRadius: 8, padding: '6px 10px' }}>
-                <Icon n="info" s={13} /> {novos.length} produto(s) novo(s) no cadastro. Entram sem lote e tempo; o PCP informa na análise antes de liberar.
-              </span>
+              <div className="aviso">
+                <Icon n="info" s={14} /> <span>{novos.length} produto(s) novo(s) no cadastro. Entram sem lote e tempo; o PCP informa na análise antes de liberar.</span>
+              </div>
             )}
-            <div className="scroll-x" style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 8 }}>
+            <div className="scroll-x imp-itens">
               <table className="t">
                 <thead>
                   <tr><th>Código</th><th>Descrição</th><th>Cód. fab.</th><th className="r">Qtde</th><th className="r">Volume</th></tr>
@@ -312,9 +323,8 @@ export function DetalhePedido() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span className="mono" style={{ fontWeight: 600 }}>Pedido #{p.numero}</span>
               <span className="chip" style={{ color: STATUS_PED[st].cor }}>{STATUS_PED[st].label}</span>
-              
             </div>
-            <h2 style={{ fontSize: 21, fontStretch: '82%', fontWeight: 750, marginTop: 4 }}>{titulo(p.fantasia)}</h2>
+            <h2>{titulo(p.fantasia)}</h2>
             <div className="muted" style={{ fontSize: 12.5 }}>{titulo(p.cliente)}</div>
           </div>
           <button className="btn ghost icon" onClick={fechar} aria-label="Fechar">
@@ -322,10 +332,10 @@ export function DetalhePedido() {
           </button>
         </div>
         <div className="drawer-body">
-          <div className="panel" style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="panel resumo-ped">
             <div style={{ flex: '1 1 220px' }}>
               <div className="eyebrow">{st === 'pronto' || st === 'expedido' ? 'Situação' : 'Estimativa de liberação p/ expedição'}</div>
-              <div style={{ fontSize: 24, fontStretch: '78%', fontWeight: 750 }} className="num">
+              <div className="num grande">
                 {estimativaTexto(e, p, est, agora)}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -347,7 +357,7 @@ export function DetalhePedido() {
             </div>
           </div>
 
-          <dl className="kv" style={{ margin: 0 }}>
+          <dl className="kv">
             <div><dt>Cidade</dt><dd>{titulo(p.cidade)}/{p.uf}</dd></div>
             <div><dt>Vendedor</dt><dd>{titulo(p.vendedor)}</dd></div>
             <div><dt>Transportadora</dt><dd>{titulo(p.transportadora)}</dd></div>
@@ -358,24 +368,23 @@ export function DetalhePedido() {
           </dl>
 
           {ops.length > 0 && (
-            <div className="panel">
-              <div className="panel-head"><h2>Ordens de produção</h2><span className="sp muted" style={{ fontSize: 12 }}>{ops.filter((o) => o.status === 'concluida').length} de {ops.length} concluídas</span></div>
+            <div className="panel flush">
+              <div className="panel-head"><h2>Ordens de produção</h2><span className="sp nota">{ops.filter((o) => o.status === 'concluida').length} de {ops.length} concluídas</span></div>
               <div className="scroll-x">
-                <table className="t">
-                  <thead><tr><th>OP</th><th>Produto</th><th className="r">Deste pedido</th><th>Situação</th><th>Previsão / fim</th></tr></thead>
+                <table className="t cartoes">
+                  <thead><tr><th>Produto / OP</th><th className="r">Deste pedido</th><th>Situação</th><th>Previsão / fim</th></tr></thead>
                   <tbody>
                     {ops.map((o) => {
                       const pv = agenda.ops.get(o.id);
                       const v = o.alocacoes.find((a) => a.pedidoId === p.id)!.volume;
                       return (
                         <tr key={o.id}>
-                          <td className="mono">{o.numero}</td>
-                          <td>{nomeOP(e, o)}</td>
-                          <td className="r num">{fmtVol(v)}<span className="muted"> / {fmtVol(o.lote)}</span></td>
-                          <td>
+                          <td className="cel-tit"><span className="nome">{nomeOP(e, o)}</span><span className="sub mono">OP {o.numero}</span></td>
+                          <td className="r num nw" data-l="Deste pedido">{fmtVol(v)}<span className="muted"> / {fmtVol(o.lote)}</span></td>
+                          <td data-l="Situação">
                             {o.status === 'concluida' ? <span className="chip ok">Concluída</span> : o.status === 'producao' ? <span className={`chip ${pv?.atrasada ? 'crit' : 'info'}`}>{pv?.atrasada ? 'Em produção · atrasada' : 'Em produção'}</span> : <span className="chip">Na fila</span>}
                           </td>
-                          <td className="num" style={{ whiteSpace: 'nowrap' }}>
+                          <td className="num nw" data-l="Previsão / fim">
                             {o.status === 'concluida' ? quando(new Date(o.fim!), agora) : pv ? quando(pv.fim, agora) : '—'}
                           </td>
                         </tr>
@@ -387,18 +396,18 @@ export function DetalhePedido() {
             </div>
           )}
 
-          <div className="panel">
+          <div className="panel flush">
             <div className="panel-head"><h2>Itens por produto</h2></div>
             <div className="scroll-x">
-              <table className="t">
+              <table className="t cartoes">
                 <thead><tr><th>Produto</th><th>Embalagens</th><th className="r">Volume</th><th>Decisão PCP</th></tr></thead>
                 <tbody>
                   {[...grupos].map(([pid, its]) => (
                     <tr key={pid}>
-                      <td><b style={{ fontWeight: 600 }}>{e.produtos[pid]?.nome ?? pid}</b><div className="mono muted" style={{ fontSize: 11.5 }}>{pid}</div></td>
-                      <td className="num fg2" style={{ fontSize: 12.5 }}>{its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}</td>
-                      <td className="r num">{fmtVol(its.reduce((s, i) => s + i.volume, 0))}</td>
-                      <td>
+                      <td className="cel-tit"><span className="nome">{e.produtos[pid]?.nome ?? pid}</span><span className="sub mono">{pid}</span></td>
+                      <td className="num fg2" data-l="Embalagens">{its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}</td>
+                      <td className="r num" data-l="Volume">{fmtVol(its.reduce((s, i) => s + i.volume, 0))}</td>
+                      <td data-l="Decisão PCP">
                         {[...new Set(its.map((i) => i.decisao))].map((d) => (
                           <span key={d} className={`chip ${d === 'op' ? 'info' : d === 'estoque' ? 'ok' : 'warn'}`} style={{ marginRight: 4 }}>
                             {d === 'op' ? 'Produzir' : d === 'estoque' ? 'Estoque' : 'Pendente'}
@@ -428,8 +437,8 @@ export function DetalhePedido() {
           {podeEditar && st !== 'expedido' && (
             <div>
               {confirmaExcluir ? (
-                <div className="chip crit" style={{ padding: '10px 12px', borderRadius: 8, gap: 10, whiteSpace: 'normal', flexWrap: 'wrap' }}>
-                  Excluir o pedido #{p.numero}? OPs ainda na fila deixam de atender este pedido.
+                <div className="aviso crit" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ flex: '1 1 240px' }}>Excluir o pedido #{p.numero}? OPs ainda na fila deixam de atender este pedido.</span>
                   <button className="btn sm danger" onClick={excluir}>Excluir</button>
                   <button className="btn sm ghost" onClick={() => setConfirmaExcluir(false)}>Manter</button>
                 </div>
@@ -440,7 +449,7 @@ export function DetalhePedido() {
               )}
             </div>
           )}
-          <span className="muted" style={{ fontSize: 11.5 }}>Tempo total padrão das OPs: {fmtDur(ops.reduce((s, o) => s + o.tempoPadraoMin, 0))}</span>
+          <span className="rodape-nota">Tempo total padrão das OPs: {fmtDur(ops.reduce((s, o) => s + o.tempoPadraoMin, 0))}</span>
         </div>
       </aside>
     </>
