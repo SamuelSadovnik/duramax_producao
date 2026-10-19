@@ -1,5 +1,5 @@
 import { expedienteEntre, fimDoDia, MIN_DIA, proximoExpediente, somarDiasUteis, somarExpediente } from './calendar.js';
-import type { Estado, OP, Pedido, StatusOP, StatusPedido } from './types.js';
+import type { Estado, OP, Pedido, Produto, StatusOP, StatusPedido } from './types.js';
 
 export const opsDoPedido = (e: Estado, pedidoId: string) =>
   e.ops.filter((o) => o.alocacoes.some((a) => a.pedidoId === pedidoId));
@@ -16,6 +16,16 @@ export function statusPedido(e: Estado, p: Pedido): StatusPedido {
 export const volumePedido = (p: Pedido) => p.itens.reduce((s, i) => s + i.volume, 0);
 export const alocado = (o: OP) => o.alocacoes.reduce((s, a) => s + a.volume, 0);
 
+/** Produto com lote e tempo informados pelo PCP. */
+export const temParametros = (p: Produto | undefined): p is Produto & { lote: number; tempoMin: number } =>
+  !!p && !!p.lote && p.lote > 0 && !!p.tempoMin && p.tempoMin > 0;
+
+/** Produtos que o pedido vai produzir (decisão "op") e que ainda não têm lote/tempo. */
+export function produtosSemParametro(e: Estado, pedido: Pedido): string[] {
+  const ids = new Set(pedido.itens.filter((i) => i.decisao === 'op').map((i) => i.produtoId));
+  return [...ids].filter((id) => !temParametros(e.produtos[id]));
+}
+
 /* ---------------------------------------------------------------- plano PCP */
 
 export interface LinhaPlano {
@@ -25,6 +35,7 @@ export interface LinhaPlano {
   novas: { lote: number; volume: number }[];
   sobra: number;        // volume de lotes novos que não é deste pedido (vai para estoque)
   tempoMin: number;     // tempo das OPs novas
+  semParametro: boolean; // produto sem lote/tempo: não dá para montar as OPs novas
 }
 
 export function planejar(e: Estado, pedido: Pedido): LinhaPlano[] {
@@ -46,11 +57,13 @@ export function planejar(e: Estado, pedido: Pedido): LinhaPlano[] {
       resta -= v;
     }
     const novas: LinhaPlano['novas'] = [];
-    const lote = prod?.lote || 500;
-    while (resta > 0.001) {
-      const v = Math.min(lote, resta);
-      novas.push({ lote, volume: v });
-      resta -= v;
+    const ok = temParametros(prod);
+    if (ok) {
+      while (resta > 0.001) {
+        const v = Math.min(prod.lote, resta);
+        novas.push({ lote: prod.lote, volume: v });
+        resta -= v;
+      }
     }
     linhas.push({
       produtoId,
@@ -58,7 +71,8 @@ export function planejar(e: Estado, pedido: Pedido): LinhaPlano[] {
       aproveita,
       novas,
       sobra: novas.reduce((s, n) => s + n.lote - n.volume, 0),
-      tempoMin: novas.length * (prod?.tempoMin ?? 360),
+      tempoMin: ok ? novas.length * prod.tempoMin : 0,
+      semParametro: !ok && resta > 0.001,
     });
   }
   return linhas.sort((a, b) => b.necessidade - a.necessidade);
@@ -70,6 +84,11 @@ export function liberarPedido(e: Estado, pedidoId: string, agora: Date, por?: st
   if (!pedido) throw new ErroRegra('Pedido não encontrado.');
   if (pedido.pcpEm) throw new ErroRegra(`O pedido #${pedido.numero} já foi liberado.`);
   if (pedido.itens.some((i) => i.decisao === 'pendente')) throw new ErroRegra('Ainda há itens sem decisão (estoque ou produzir).');
+  const faltam = produtosSemParametro(e, pedido);
+  if (faltam.length) {
+    const nomes = faltam.slice(0, 3).map((id) => e.produtos[id]?.nome ?? id).join(', ');
+    throw new ErroRegra(`Informe lote e tempo de ${faltam.length} produto(s) antes de liberar: ${nomes}${faltam.length > 3 ? '…' : ''}.`);
+  }
   const plano = planejar(e, pedido);
   let seq = e.seqOP;
   const ops = e.ops.map((o) => ({ ...o, alocacoes: [...o.alocacoes] }));
@@ -79,13 +98,13 @@ export function liberarPedido(e: Estado, pedidoId: string, agora: Date, por?: st
     for (const n of l.novas) {
       seq++;
       novasNums.push(seq);
-      const prod = e.produtos[l.produtoId];
+      const prod = e.produtos[l.produtoId] as Produto & { tempoMin: number };
       ops.push({
         id: `op${seq}`,
         numero: seq,
         produtoId: l.produtoId,
         lote: n.lote,
-        tempoPadraoMin: prod?.tempoMin ?? 360,
+        tempoPadraoMin: prod.tempoMin,
         alocacoes: [{ pedidoId, volume: n.volume }],
         status: 'fila',
         criadaEm: agora.toISOString(),

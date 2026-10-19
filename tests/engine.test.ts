@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calcularAgenda, liberarPedido, mudarStatusOP, planejar, prazoDoPedido, situacaoPrazo, statusPedido, ErroRegra } from '../shared/engine';
+import { calcularAgenda, liberarPedido, mudarStatusOP, planejar, prazoDoPedido, produtosSemParametro, situacaoPrazo, statusPedido, ErroRegra } from '../shared/engine';
 import { decidirItens, definirPrioridade, expedirPedido, importarPedidos, atualizarProduto } from '../shared/acoes';
 import type { Estado } from '../shared/types';
 import type { PedidoLido } from '../shared/parse';
@@ -14,7 +14,15 @@ const lido = (numero: string, itens: ReturnType<typeof item>[]): PedidoLido => (
   numero, cliente: 'C', fantasia: 'F', cidade: 'X', uf: 'PR', vendedor: 'V', transportadora: 'T', emissao: '2026-10-19', previsao: '2026-10-19', hora: '', itens, avisos: [],
 });
 
+/** Pedidos importados e parâmetros informados pelo PCP (valores de teste). */
 function cenario() {
+  let e = semParametros();
+  e = atualizarProduto(e, '600.1000', { lote: 600, tempoMin: 360 });
+  e = atualizarProduto(e, '600.8550', { lote: 600, tempoMin: 330 });
+  return e;
+}
+
+function semParametros() {
   let e = vazio();
   e = importarPedidos(e, [
     { pedido: lido('1', [item('600.1000.4', 144, 3.6, 'Branco BR'), item('600.1000.18', 4, 18, 'Branco BR'), item('600.8550.4', 10, 3.6, 'Preto BR')]) },
@@ -25,11 +33,11 @@ function cenario() {
 
 describe('importação', () => {
   it('cria pedidos, produtos e coloca no fim da fila', () => {
-    const e = cenario();
+    const e = semParametros();
     expect(e.pedidos.map((p) => p.numero)).toEqual(['1', '2']);
     expect(e.prioridade).toEqual(['p1', 'p2']);
     expect(Object.keys(e.produtos).sort()).toEqual(['600.1000', '600.8550']);
-    expect(e.produtos['600.1000'].pendente).toBe(true);
+    expect(e.produtos['600.1000']).toMatchObject({ lote: null, tempoMin: null });
   });
   it('recusa pedido duplicado', () => {
     expect(() => importarPedidos(cenario(), [{ pedido: lido('1', [item('600.1.4', 1, 3.6, 'x')]) }], agora)).toThrow(ErroRegra);
@@ -70,6 +78,18 @@ describe('PCP e OPs', () => {
     const plano = planejar(e, e.pedidos[1]);
     expect(plano[0].aproveita[0].volume).toBeCloseTo(9.6);
     expect(plano[0].novas).toHaveLength(1);
+  });
+
+  it('produto novo entra sem lote nem tempo e bloqueia a liberação', () => {
+    let e = semParametros();
+    e = decidirItens(e, 'p1', e.pedidos[0].itens.map((i) => i.id), 'op');
+    const plano = planejar(e, e.pedidos[0]);
+    expect(plano.every((l) => l.semParametro && l.novas.length === 0)).toBe(true);
+    expect(produtosSemParametro(e, e.pedidos[0])).toHaveLength(2);
+    expect(() => liberarPedido(e, 'p1', agora)).toThrow(/Informe lote e tempo de 2 produto/);
+    // item que sai do estoque não precisa de parâmetro
+    e = decidirItens(e, 'p1', e.pedidos[0].itens.map((i) => i.id), 'estoque');
+    expect(() => liberarPedido(e, 'p1', agora)).not.toThrow();
   });
 
   it('não libera com item pendente', () => {
@@ -121,6 +141,5 @@ describe('PCP e OPs', () => {
     e = liberarPedido(e, 'p1', agora);
     e = atualizarProduto(e, '600.1000', { tempoMin: 400 });
     expect(e.ops.find((o) => o.produtoId === '600.1000')!.tempoPadraoMin).toBe(400);
-    expect(e.produtos['600.1000'].pendente).toBe(false);
   });
 });

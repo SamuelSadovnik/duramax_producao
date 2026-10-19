@@ -3,15 +3,15 @@
  * O servidor roda exatamente estas funções dentro de uma transação e grava a diferença;
  * o front usa as mesmas regras para mostrar prévias (plano do PCP, simulação da fila).
  */
-import { parametrosSugeridos } from './catalog.js';
 import { ErroRegra, excluirPedido, statusPedido } from './engine.js';
 import type { PedidoLido } from './parse.js';
 import type { Config, Decisao, Estado, Pedido, Produto } from './types.js';
 
 export { ErroRegra, excluirPedido };
 
-export function produtoDeLido(id: string, nome: string, pendente = false): Produto {
-  return { id, nome, linha: id.split('.')[0], ...parametrosSugeridos(id, nome), pendente };
+/** Produto novo vindo do PDF: entra sem lote e sem tempo; o PCP informa antes de liberar. */
+export function produtoDeLido(id: string, nome: string): Produto {
+  return { id, nome, linha: id.split('.')[0], unidade: 'L', lote: null, tempoMin: null };
 }
 
 export const idPedido = (numero: string) => `p${numero}`;
@@ -76,7 +76,7 @@ export function importarPedidos(e: Estado, lista: Importacao[], agora: Date, por
     if (pedidos.some((p) => p.numero === l.numero)) throw new ErroRegra(`O pedido #${l.numero} já existe no sistema.`);
     for (const i of l.itens)
       if (!produtos[i.produtoId]) {
-        produtos[i.produtoId] = produtoDeLido(i.produtoId, i.produtoNome || i.descricao, true);
+        produtos[i.produtoId] = produtoDeLido(i.produtoId, i.produtoNome || i.descricao);
         novosProdutos++;
       }
     const p = pedidoDeLido(l, agora);
@@ -129,7 +129,6 @@ export function atualizarProduto(e: Estado, id: string, patch: { lote?: number; 
     ...(patch.lote !== undefined ? { lote: patch.lote } : {}),
     ...(patch.tempoMin !== undefined ? { tempoMin: patch.tempoMin } : {}),
     ...(patch.nome ? { nome: patch.nome.slice(0, 200) } : {}),
-    pendente: false,
   };
   return {
     ...e,

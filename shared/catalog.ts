@@ -1,5 +1,3 @@
-import type { Produto } from './types.js';
-
 export const LINHAS: Record<string, string> = {
   '600': 'Durafort Metais',
   '610': 'Durafort DF Pisos',
@@ -48,27 +46,3 @@ export function nomeBase(descricao: string): string {
 }
 
 export const baseDe = (codFab: string) => codFab.split('.').slice(0, -1).join('.') || codFab;
-
-/** Parâmetros sugeridos (simulados) por linha — o PCP ajusta por produto. */
-export function parametrosSugeridos(id: string, nome: string): Pick<Produto, 'lote' | 'tempoMin' | 'unidade'> {
-  const linha = id.split('.')[0];
-  const n = nome.toUpperCase();
-  const cor = !/BRANCO|PRETO|INCOLOR/.test(n);
-  switch (linha) {
-    case '600':
-      if (/ALUMINIO/.test(n)) return { lote: 400, tempoMin: 390, unidade: 'L' };
-      if (/PRETO/.test(n)) return { lote: 600, tempoMin: 330, unidade: 'L' };
-      return { lote: 600, tempoMin: cor ? 420 : 360, unidade: 'L' };
-    case '610':
-      return { lote: 800, tempoMin: cor ? 540 : 480, unidade: 'L' };
-    case '400':
-      return { lote: 1000, tempoMin: 150, unidade: 'L' };
-    case '800':
-      if (/CATALISADOR/.test(n)) return { lote: 200, tempoMin: 180, unidade: 'L' };
-      return { lote: 300, tempoMin: 420, unidade: 'L' };
-    case '200':
-      return { lote: 500, tempoMin: 300, unidade: 'L' };
-    default:
-      return { lote: 500, tempoMin: 360, unidade: 'L' };
-  }
-}

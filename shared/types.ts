@@ -22,9 +22,10 @@ export interface Produto {
   nome: string;          // nome sem embalagem
   linha: string;         // prefixo, ex. 600
   unidade: 'L' | 'kg';
-  lote: number;          // tamanho do lote (L ou kg)
-  tempoMin: number;      // tempo padrão por lote, em minutos de expediente
-  pendente?: boolean;    // criado na importação, parâmetros ainda não revisados
+  /** Tamanho do lote (L ou kg). null = ainda não informado pelo PCP. */
+  lote: number | null;
+  /** Tempo padrão por lote, em minutos de expediente. null = ainda não informado pelo PCP. */
+  tempoMin: number | null;
 }
 
 export type Decisao = 'pendente' | 'estoque' | 'op';
