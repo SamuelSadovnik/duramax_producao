@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { pode, useApp } from './store';
-import { Icon, PrazoChip } from './ui';
+import { Icon, PrazoChip, Vazio } from './ui';
 import { calcularAgenda, liberarPedido, planejar, prazoDoPedido, produtosSemParametro, situacaoPrazo, statusPedido, temParametros, volumePedido, type LinhaPlano } from '../shared/engine';
 import { CamposParam } from './ParamProduto';
 import { dataISOparaBR, fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
@@ -49,10 +49,8 @@ export function PCPView() {
       </div>
 
       {!total ? (
-        <div className="panel vazio-grande">
-          <Icon n="pcp" s={34} w={1.6} />
-          <b>Nenhum pedido aguardando análise</b>
-          <span>Quando o comercial importar um PDF, ele aparece aqui.</span>
+        <div className="panel">
+          <Vazio icone="pcp" titulo="Nenhum pedido aguardando análise">Quando o comercial importar um PDF, ele aparece aqui.</Vazio>
         </div>
       ) : (
         <div className="pcp2">
@@ -85,7 +83,7 @@ export function PCPView() {
                   </button>
                 );
               })}
-              {!pend.length && <div className="empty">Nenhum pedido com esse filtro.</div>}
+              {!pend.length && <Vazio compacto icone="search" titulo="Nenhum pedido com essa busca" />}
             </div>
           </section>
 
@@ -163,11 +161,11 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
           </div>
         </div>
         <div className="pcp2-cab-a">
-          <button className="btn ghost sm" onClick={abrir}>Ver pedido</button>
+          <button className="btn ghost" onClick={abrir}>Ver pedido</button>
           {!somenteVer && (
             <>
-              <button className="btn sm" disabled={ocupado} onClick={() => decidir(todos, 'estoque')}>Tudo do estoque</button>
-              <button className="btn sm" disabled={ocupado} onClick={() => decidir(todos, 'op')}>Tudo vira OP</button>
+              <button className="btn" disabled={ocupado} onClick={() => decidir(todos, 'estoque')}><Icon n="box" s={15} /> Tudo do estoque</button>
+              <button className="btn" disabled={ocupado} onClick={() => decidir(todos, 'op')}><Icon n="flask" s={15} /> Tudo vira OP</button>
             </>
           )}
         </div>
@@ -196,25 +194,25 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
           )}
         </div>
         {!somenteVer && (
-          <button className="btn pri pcp2-liberar" disabled={!!bloqueio || ocupado} onClick={liberar}>
+          <button className="btn pri lg pcp2-liberar" disabled={!!bloqueio || ocupado} onClick={liberar}>
             <Icon n="check" s={17} w={2.4} /> Liberar para produção
           </button>
         )}
       </div>
       {bloqueio && (
-        <div className="pcp2-aviso" role="status">
-          <Icon n="info" s={15} /> {bloqueio}
+        <div className="aviso" role="status">
+          <Icon n="info" s={15} /> <span>{bloqueio}</span>
         </div>
       )}
 
-      <div className="panel pcp2-tab">
+      <div className="panel flush">
         <div className="scroll-x">
-          <table className="t pcp2-t">
+          <table className="t pcp2-t cartoes">
             <thead>
               <tr>
                 <th>Produto</th>
                 <th className="r">Volume</th>
-                <th>Decisão</th>
+                <th className="w-min">Decisão</th>
                 <th>Plano de produção</th>
               </tr>
             </thead>
@@ -233,7 +231,7 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
                     const l = planoDe.get(pid);
                     const linhasTab = [
                       <tr key={pid} className={`pcp2-prod${g === 'pendente' ? ' pend' : ''}`}>
-                        <td>
+                        <td className="cel-tit">
                           <b className="pn">{prod?.nome ?? pid}</b>
                           <span className="ps">
                             <span className="mono">{pid}</span> · {its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}
@@ -244,15 +242,12 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
                             )}
                           </span>
                         </td>
-                        <td className="r num"><b>{fmtVol(vol)}</b></td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          <div className="dec" role="group" aria-label={`Decisão para ${prod?.nome}`}>
-                            <button className="on-est" aria-pressed={g === 'estoque'} disabled={somenteVer || ocupado} onClick={() => decidir(ids, 'estoque')}>Estoque</button>
-                            <button className="on-op" aria-pressed={g === 'op'} disabled={somenteVer || ocupado} onClick={() => decidir(ids, 'op')}>Produzir</button>
-                          </div>
+                        <td className="r num nw" data-l="Volume"><b>{fmtVol(vol)}</b></td>
+                        <td className="nw cel-larga" data-l="Decisão">
+                          <BotoesDecisao valor={g} desativado={somenteVer || ocupado} nome={prod?.nome ?? pid} onEscolher={(d) => decidir(ids, d)} />
                           {g === 'misto' && <span className="chip" style={{ marginLeft: 6 }}>misto</span>}
                         </td>
-                        <td>
+                        <td className="cel-larga" data-l="Plano de produção">
                           <Plano l={l} decisao={g} prodOk={temParametros(prod)} />
                           {l?.semParametro && prod && (
                             <div className="pcp2-param">
@@ -270,16 +265,13 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
                       for (const i of its)
                         linhasTab.push(
                           <tr key={i.id} className="pcp2-emb">
-                            <td>
+                            <td className="cel-tit">
                               <span className="mono muted">{i.codigo}</span> <span className="mono">{i.codFab}</span>
                               <span className="muted"> · {nf(i.qtde)} × {nf(i.embalagem, 1)} L</span>
                             </td>
-                            <td className="r num">{fmtVol(i.volume)}</td>
-                            <td colSpan={2}>
-                              <div className="dec">
-                                <button className="on-est" aria-pressed={i.decisao === 'estoque'} disabled={somenteVer || ocupado} onClick={() => decidir([i.id], 'estoque')}>Estoque</button>
-                                <button className="on-op" aria-pressed={i.decisao === 'op'} disabled={somenteVer || ocupado} onClick={() => decidir([i.id], 'op')}>Produzir</button>
-                              </div>
+                            <td className="r num cel-oculta">{fmtVol(i.volume)}</td>
+                            <td colSpan={2} className="cel-larga">
+                              <BotoesDecisao pequeno valor={i.decisao} desativado={somenteVer || ocupado} nome={i.codFab} onEscolher={(d) => decidir([i.id], d)} />
                             </td>
                           </tr>,
                         );
@@ -291,6 +283,19 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
         </div>
       </div>
     </section>
+  );
+}
+
+function BotoesDecisao({ valor, desativado, nome, onEscolher, pequeno }: { valor: Decisao | 'misto'; desativado: boolean; nome: string; onEscolher: (d: Decisao) => void; pequeno?: boolean }) {
+  return (
+    <div className={`dec${pequeno ? ' sm' : ''}`} role="group" aria-label={`Decisão para ${nome}`}>
+      <button className="on-est" aria-pressed={valor === 'estoque'} disabled={desativado} onClick={() => onEscolher('estoque')}>
+        <Icon n={valor === 'estoque' ? 'check' : 'box'} s={14} w={valor === 'estoque' ? 2.6 : 2} /> Estoque
+      </button>
+      <button className="on-op" aria-pressed={valor === 'op'} disabled={desativado} onClick={() => onEscolher('op')}>
+        <Icon n={valor === 'op' ? 'check' : 'flask'} s={14} w={valor === 'op' ? 2.6 : 2} /> Produzir
+      </button>
+    </div>
   );
 }
 
