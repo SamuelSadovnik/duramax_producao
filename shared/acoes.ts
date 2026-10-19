@@ -48,8 +48,6 @@ export function pedidoDeLido(l: PedidoLido, agora: Date, extra: Partial<Pedido> 
 
 export interface Importacao {
   pedido: PedidoLido;
-  /** Prazo combinado com o cliente (yyyy-mm-dd). */
-  prazo: string;
 }
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -62,7 +60,6 @@ export function validarImportacao(x: Importacao): string | null {
   for (const i of p.itens) {
     if (!i || typeof i.produtoId !== 'string' || !i.produtoId || !(i.qtde > 0) || !(i.embalagem > 0)) return `Pedido #${p.numero}: item inválido (${i?.codigo ?? '?'}).`;
   }
-  if (x.prazo && !DATA.test(x.prazo)) return `Pedido #${p.numero}: prazo inválido.`;
   return null;
 }
 
@@ -82,7 +79,7 @@ export function importarPedidos(e: Estado, lista: Importacao[], agora: Date, por
         produtos[i.produtoId] = produtoDeLido(i.produtoId, i.produtoNome || i.descricao, true);
         novosProdutos++;
       }
-    const p = pedidoDeLido(l, agora, { previsao: x.prazo || l.previsao });
+    const p = pedidoDeLido(l, agora);
     p.eventos = [{ em: agora.toISOString(), texto: 'Pedido importado do PDF', tipo: 'info', por }];
     pedidos.push(p);
     prioridade.push(p.id);
@@ -151,6 +148,10 @@ export function atualizarConfig(e: Estado, patch: Partial<Config>): Estado {
   if (patch.toleranciaPct !== undefined) {
     if (!(Number.isInteger(patch.toleranciaPct) && patch.toleranciaPct >= 0 && patch.toleranciaPct <= 200)) throw new ErroRegra('Tolerância inválida.');
     c.toleranciaPct = patch.toleranciaPct;
+  }
+  if (patch.prazoDiasUteis !== undefined) {
+    if (!(Number.isInteger(patch.prazoDiasUteis) && patch.prazoDiasUteis >= 1 && patch.prazoDiasUteis <= 60)) throw new ErroRegra('Prazo inválido (1 a 60 dias úteis).');
+    c.prazoDiasUteis = patch.prazoDiasUteis;
   }
   if (patch.feriados !== undefined) {
     if (!Array.isArray(patch.feriados) || patch.feriados.some((f) => !DATA.test(f))) throw new ErroRegra('Feriados inválidos.');

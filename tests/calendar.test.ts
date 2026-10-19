@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expedienteEntre, proximoExpediente, situacaoTurno, somarExpediente, subtrairExpediente, MIN_DIA } from '../shared/calendar';
+import { expedienteEntre, proximoExpediente, situacaoTurno, somarDiasUteis, somarExpediente, subtrairExpediente, MIN_DIA } from '../shared/calendar';
 import { deISOlocal } from '../shared/tz';
 import { hora, quando } from '../shared/fmt';
 
@@ -37,6 +37,12 @@ describe('calendário de expediente (horário de Brasília)', () => {
     const t = L('2026-11-03T08:00');
     const s = subtrairExpediente(t, 60, F);
     expect(quando(s, t)).toBe('sex 30/10 17:00');
+  });
+
+  it('soma dias úteis sem contar o próprio dia', () => {
+    expect(somarDiasUteis(L('2026-10-19T09:00'), 7, F)).toBe('2026-10-28');
+    expect(somarDiasUteis(L('2026-10-17T10:00'), 1, F)).toBe('2026-10-19'); // sábado → segunda
+    expect(somarDiasUteis(L('2026-10-29T18:00'), 2, F)).toBe('2026-11-03'); // pula fim de semana e feriado 02/11
   });
 
   it('situação do turno', () => {

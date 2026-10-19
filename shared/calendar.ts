@@ -107,6 +107,20 @@ export function situacaoTurno(d: Date, feriados: string[]): Turno {
   return 'fora';
 }
 
+/**
+ * Data (yyyy-mm-dd) do n-ésimo dia útil depois de `d`.
+ * O próprio dia não conta: um pedido que entra na segunda com prazo de 7 dias úteis vence na quarta da semana seguinte.
+ */
+export function somarDiasUteis(d: Date, n: number, feriados: string[]): string {
+  let t = inicioDoDia(d);
+  let resta = Math.max(0, Math.floor(n));
+  for (let guard = 0; guard < 1000 && resta > 0; guard++) {
+    t = somarDias(t, 1);
+    if (diaUtil(t, feriados)) resta--;
+  }
+  return iso(t);
+}
+
 /** Fim do expediente (17:30) de uma data yyyy-mm-dd. */
 export const fimDoDia = (data: string) => deISOlocal(data, '17:30');
 

@@ -1,4 +1,4 @@
-import { expedienteEntre, fimDoDia, MIN_DIA, proximoExpediente, somarExpediente } from './calendar.js';
+import { expedienteEntre, fimDoDia, MIN_DIA, proximoExpediente, somarDiasUteis, somarExpediente } from './calendar.js';
 import type { Estado, OP, Pedido, StatusOP, StatusPedido } from './types.js';
 
 export const opsDoPedido = (e: Estado, pedidoId: string) =>
@@ -181,11 +181,15 @@ export function calcularAgenda(e: Estado, agora: Date, prioridade = e.prioridade
   return { ops: res, pedidos, base };
 }
 
-/** Situação do pedido em relação ao prazo (data previsão). */
+/** Prazo de entrega (yyyy-mm-dd): N dias úteis depois do dia em que o pedido entrou no sistema. */
+export function prazoDoPedido(e: Estado, p: Pedido): string {
+  return somarDiasUteis(new Date(p.importadoEm), e.config.prazoDiasUteis ?? 7, e.config.feriados);
+}
+
+/** Situação do pedido em relação ao prazo. */
 export interface Prazo { tipo: 'ok' | 'risco' | 'atrasado' | 'sem'; texto: string; dias: number }
 export function situacaoPrazo(e: Estado, p: Pedido, estimativa: Date | undefined, agora: Date): Prazo {
-  if (!p.previsao) return { tipo: 'sem', texto: 'Sem prazo', dias: 0 };
-  const limite = fimDoDia(p.previsao);
+  const limite = fimDoDia(prazoDoPedido(e, p));
   const fer = e.config.feriados;
   const ref = p.expedidoEm ? new Date(p.expedidoEm) : p.prontoEm ? new Date(p.prontoEm) : estimativa ?? (p.pcpEm ? undefined : agora);
   if (!ref) return { tipo: 'sem', texto: '—', dias: 0 };

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { calcularAgenda, liberarPedido, mudarStatusOP, planejar, statusPedido, ErroRegra } from '../shared/engine';
+import { calcularAgenda, liberarPedido, mudarStatusOP, planejar, prazoDoPedido, situacaoPrazo, statusPedido, ErroRegra } from '../shared/engine';
 import { decidirItens, definirPrioridade, expedirPedido, importarPedidos, atualizarProduto } from '../shared/acoes';
 import type { Estado } from '../shared/types';
 import type { PedidoLido } from '../shared/parse';
 import { deISOlocal } from '../shared/tz';
 
 const agora = deISOlocal('2026-10-19', '09:00');
-const vazio = (): Estado => ({ versao: 0, produtos: {}, pedidos: [], ops: [], prioridade: [], config: { capacidade: 2, toleranciaPct: 10, feriados: [] }, seqOP: 100 });
+const vazio = (): Estado => ({ versao: 0, produtos: {}, pedidos: [], ops: [], prioridade: [], config: { capacidade: 2, toleranciaPct: 10, prazoDiasUteis: 7, feriados: [] }, seqOP: 100 });
 const item = (codFab: string, qtde: number, embalagem: number, nome: string) => ({
   codigo: '0', descricao: nome, codFab, qtde, embalagem, produtoId: codFab.split('.').slice(0, -1).join('.'), produtoNome: nome,
 });
@@ -17,8 +17,8 @@ const lido = (numero: string, itens: ReturnType<typeof item>[]): PedidoLido => (
 function cenario() {
   let e = vazio();
   e = importarPedidos(e, [
-    { pedido: lido('1', [item('600.1000.4', 144, 3.6, 'Branco BR'), item('600.1000.18', 4, 18, 'Branco BR'), item('600.8550.4', 10, 3.6, 'Preto BR')]), prazo: '2026-10-23' },
-    { pedido: lido('2', [item('600.1000.4', 20, 3.6, 'Branco BR')]), prazo: '2026-10-23' },
+    { pedido: lido('1', [item('600.1000.4', 144, 3.6, 'Branco BR'), item('600.1000.18', 4, 18, 'Branco BR'), item('600.8550.4', 10, 3.6, 'Preto BR')]) },
+    { pedido: lido('2', [item('600.1000.4', 20, 3.6, 'Branco BR')]) },
   ], agora, 'Samuel').estado;
   return e;
 }
@@ -32,7 +32,21 @@ describe('importação', () => {
     expect(e.produtos['600.1000'].pendente).toBe(true);
   });
   it('recusa pedido duplicado', () => {
-    expect(() => importarPedidos(cenario(), [{ pedido: lido('1', [item('600.1.4', 1, 3.6, 'x')]), prazo: '' }], agora)).toThrow(ErroRegra);
+    expect(() => importarPedidos(cenario(), [{ pedido: lido('1', [item('600.1.4', 1, 3.6, 'x')]) }], agora)).toThrow(ErroRegra);
+  });
+});
+
+describe('prazo de entrega', () => {
+  it('é de 7 dias úteis a partir da entrada no sistema, ignorando a previsão do PDF', () => {
+    const e = cenario(); // importado seg 19/10, previsão do PDF = 19/10
+    expect(prazoDoPedido(e, e.pedidos[0])).toBe('2026-10-28');
+    expect(situacaoPrazo(e, e.pedidos[0], deISOlocal('2026-10-28', '17:00'), agora).tipo).not.toBe('atrasado');
+    expect(situacaoPrazo(e, e.pedidos[0], deISOlocal('2026-10-29', '09:00'), agora).tipo).toBe('atrasado');
+  });
+  it('respeita feriados e o parâmetro de dias', () => {
+    let e = cenario();
+    e = { ...e, config: { ...e.config, feriados: ['2026-10-21'], prazoDiasUteis: 3 } };
+    expect(prazoDoPedido(e, e.pedidos[0])).toBe('2026-10-23');
   });
 });
 

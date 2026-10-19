@@ -53,7 +53,7 @@ export interface Pedido {
   vendedor: string;
   transportadora: string;
   emissao: string;       // yyyy-mm-dd
-  previsao: string;      // yyyy-mm-dd (data previsão do ERP)
+  previsao: string;      // yyyy-mm-dd: data previsão impressa no PDF do ERP (só informativa; o prazo é calculado)
   itens: Item[];
   importadoEm: string;   // ISO
   pcpEm?: string;        // ISO — PCP liberou
@@ -87,6 +87,7 @@ export interface OP {
 export interface Config {
   capacidade: number;        // OPs simultâneas consideradas na estimativa
   toleranciaPct: number;     // acima disso pede motivo do atraso
+  prazoDiasUteis: number;    // prazo de entrega: dias úteis a partir da entrada do pedido no sistema
   feriados: string[];        // yyyy-mm-dd
 }
 
