@@ -115,3 +115,16 @@ Cada mudança vai num commit próprio, no formato `tipo(área): descrição`:
 - áreas usadas: `regras`, `banco`, `api`, `web`, `deploy`
 
 O GitHub Actions (`.github/workflows/ci.yml`) roda tipos, testes, migrações e build a cada push.
+
+## Dados de teste
+
+Para experimentar o sistema com pedidos e OPs fictícios:
+
+```bash
+npm run db:demo              # cria 20 pedidos de teste (900001 a 900020) e OPs simuladas dos últimos dias
+npm run db:demo -- --limpar  # apaga só os dados de teste
+```
+
+Os dados de teste usam apenas produtos da **Linha 900** (nome começando por `TESTE`), clientes `TESTE …`
+e pedidos a partir do número 900001. Produtos, pedidos e OPs reais não são alterados. Rodar de novo
+recria os dados de teste a partir de agora.

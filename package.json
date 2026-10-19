@@ -17,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "db:up": "docker compose up -d db",
     "db:migrar": "tsx --env-file=.env scripts/migrar.ts",
-    "criar-usuario": "tsx --env-file=.env scripts/criar-usuario.ts"
+    "criar-usuario": "tsx --env-file=.env scripts/criar-usuario.ts",
+    "db:demo": "tsx --env-file=.env scripts/demo.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
