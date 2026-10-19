@@ -13,7 +13,7 @@ const iso = (d: Date | null | undefined) => (d ? d.toISOString() : undefined);
 const opc = <T>(v: T | null | undefined) => (v === null ? undefined : v);
 
 function linhaProduto(r: any): Produto {
-  return { id: r.id, nome: r.nome, linha: r.linha, unidade: r.unidade, lote: Number(r.lote), tempoMin: r.tempo_min, pendente: r.pendente || undefined };
+  return { id: r.id, nome: r.nome, linha: r.linha, unidade: r.unidade, lote: r.lote === null ? null : Number(r.lote), tempoMin: r.tempo_min ?? null };
 }
 
 function linhaPedido(r: any): Pedido {
@@ -108,10 +108,10 @@ export async function persistir(c: Tx, antes: Carregado, depois: Estado): Promis
   for (const p of Object.values(depois.produtos)) {
     if (igual(A.produtos[p.id], p)) continue;
     await c.query(
-      `insert into produtos (id, nome, linha, unidade, lote, tempo_min, pendente, atualizado_em)
-       values ($1,$2,$3,$4,$5,$6,$7, now())
-       on conflict (id) do update set nome=$2, linha=$3, unidade=$4, lote=$5, tempo_min=$6, pendente=$7, atualizado_em=now()`,
-      [p.id, p.nome, p.linha, p.unidade, p.lote, p.tempoMin, !!p.pendente],
+      `insert into produtos (id, nome, linha, unidade, lote, tempo_min, atualizado_em)
+       values ($1,$2,$3,$4,$5,$6, now())
+       on conflict (id) do update set nome=$2, linha=$3, unidade=$4, lote=$5, tempo_min=$6, atualizado_em=now()`,
+      [p.id, p.nome, p.linha, p.unidade, p.lote, p.tempoMin],
     );
     n++;
   }
