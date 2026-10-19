@@ -8,26 +8,18 @@ import type { Decisao, Pedido } from '../shared/types';
 import { nomeLinha } from '../shared/catalog';
 import { api } from './api';
 
-type Ordem = 'prazo' | 'chegada' | 'volume';
-
 export function PCPView() {
   const { e, executar, abrirPedido, perfil, toast } = useApp();
   const [q, setQ] = useState('');
-  const [ordem, setOrdem] = useState<Ordem>('prazo');
   const pend = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const lista = e.pedidos
       .filter((p) => statusPedido(e, p) === 'pcp')
       .filter((p) => !ql || `${p.numero} ${p.fantasia} ${p.cliente} ${p.cidade}`.toLowerCase().includes(ql));
     const prazo = (p: Pedido) => prazoDoPedido(e, p);
-    return lista.sort((a, b) =>
-      ordem === 'volume'
-        ? volumePedido(b) - volumePedido(a)
-        : ordem === 'chegada'
-          ? a.importadoEm.localeCompare(b.importadoEm)
-          : prazo(a).localeCompare(prazo(b)) || a.importadoEm.localeCompare(b.importadoEm),
-    );
-  }, [e, q, ordem]);
+    // o prazo mais curto aparece primeiro; empate fica com quem entrou antes
+    return lista.sort((a, b) => prazo(a).localeCompare(prazo(b)) || a.importadoEm.localeCompare(b.importadoEm));
+  }, [e, q]);
   const total = useMemo(() => e.pedidos.filter((p) => statusPedido(e, p) === 'pcp').length, [e]);
   const [selId, setSel] = useState<string | null>(pend[0]?.id ?? null);
   useEffect(() => {
@@ -75,11 +67,6 @@ export function PCPView() {
                 <span className="sr">Buscar</span>
                 <input id="busca-pcp" className="input" placeholder="Nº ou cliente" value={q} onChange={(ev) => setQ(ev.target.value)} />
               </label>
-              <div className="seg" role="group" aria-label="Ordenar por">
-                <button aria-pressed={ordem === 'prazo'} onClick={() => setOrdem('prazo')}>Prazo</button>
-                <button aria-pressed={ordem === 'chegada'} onClick={() => setOrdem('chegada')}>Chegada</button>
-                <button aria-pressed={ordem === 'volume'} onClick={() => setOrdem('volume')}>Volume</button>
-              </div>
             </div>
             <div className="pcp2-itens">
               {pend.map((p) => {
