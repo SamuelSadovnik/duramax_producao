@@ -23,19 +23,11 @@ export function Login({ onEntrar }: { onEntrar: (u: Usuario) => void }) {
 
   return (
     <div className="login">
-      <section className="login-art">
-        <img src="/logo-h-white.png" alt="Duramax Tintas e Vernizes" />
-        <div>
-          <h1>Produção do pedido até a expedição</h1>
-          <p>Importação dos pedidos, decisão do PCP, ordens de produção, painel da fábrica e desempenho num lugar só.</p>
+      <form className="login-card" onSubmit={entrar}>
+        <div className="login-marca">
+          <img src="/logo-h-white.png" alt="Duramax Tintas e Vernizes" />
         </div>
-        <div className="fluxo" aria-hidden="true">
-          <span>Comercial</span><i>→</i><span>PCP</span><i>→</i><span>Fábrica</span><i>→</i><span>Expedição</span>
-        </div>
-      </section>
-      <section className="login-form">
-        <form onSubmit={entrar}>
-          <h2>Entrar</h2>
+        <div className="login-campos">
           <label>
             Usuário
             <input id="login-usuario" className="input" autoComplete="username" autoCapitalize="none" value={usuario} onChange={(e) => setUsuario(e.target.value)} required autoFocus />
@@ -46,9 +38,8 @@ export function Login({ onEntrar }: { onEntrar: (u: Usuario) => void }) {
           </label>
           {erro && <div className="erro" role="alert">{erro}</div>}
           <button className="btn pri" type="submit" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
-          <span className="ajuda">Não tem acesso ou esqueceu a senha? Fale com o administrador do sistema.</span>
-        </form>
-      </section>
+        </div>
+      </form>
     </div>
   );
 }
