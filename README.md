@@ -89,7 +89,13 @@ Outros comandos:
    ```
 6. **Deploy:** faça *Redeploy* na Vercel (ou um novo push). Acesse a URL do projeto e entre.
 
-Para conferir se a API e o banco estão no ar: `https://SEU-PROJETO.vercel.app/api/saude` deve responder `{"ok":true}`.
+Para conferir a instalação, abra `https://SEU-PROJETO.vercel.app/api/saude`. Ele mostra cada item e o que falta:
+
+```json
+{ "ok": true, "segredo": "ok", "banco": "ok", "tabelas": "ok", "usuarios": "ok (5)" }
+```
+
+Se algum item vier como `faltando: ...`, a própria mensagem diz o que fazer (criar `AUTH_SECRET`, rodar `npm run db:migrar`, criar o administrador).
 
 ### Subir para o GitHub
 
