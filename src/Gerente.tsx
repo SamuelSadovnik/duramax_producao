@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp, useRelogio } from './store';
-import { Icon, Modal, nomeOP } from './ui';
+import { Icon, Modal, Vazio, nomeOP } from './ui';
 import { filaOrdenada, MOTIVOS, opsDoPedido } from '../shared/engine';
 import { paraInputLocal, deInputLocal } from '../shared/tz';
 import { api } from './api';
@@ -106,9 +106,10 @@ export function GerenteView() {
             );
           })}
           {!emProd.length && (
-            <div className="fl-empty">
-              <b>Nada em produção</b>
-              {fila[0] ? <>Próxima da fila: <strong>{nomeOP(e, fila[0])}</strong></> : 'A fila está vazia.'}
+            <div className="fl-caixa">
+              <Vazio icone="fabrica" titulo="Nada em produção">
+                {fila[0] ? <>Próxima da fila: <b style={{ fontSize: 13 }}>{nomeOP(e, fila[0])}</b></> : 'A fila está vazia.'}
+              </Vazio>
             </div>
           )}
 
@@ -116,6 +117,7 @@ export function GerenteView() {
 
         <section className={`fl-col fl-done${aba === 'prontas' ? ' show' : ''}`} aria-label="Prontas hoje">
           <h2 className="fl-h">Prontas hoje</h2>
+          {hoje.length > 0 ? (
           <div className="done-list">
             {hoje.map((o) => {
               const real = o.realMin ?? 0;
@@ -132,8 +134,10 @@ export function GerenteView() {
                 </div>
               );
             })}
-            {!hoje.length && <div className="muted" style={{ padding: '10px 2px' }}>Nenhuma OP concluída hoje.</div>}
           </div>
+          ) : (
+            <div className="fl-caixa"><Vazio compacto icone="check" titulo="Nenhuma OP concluída hoje" /></div>
+          )}
         </section>
 
         <section className={`fl-col fl-fila${aba === 'fila' ? ' show' : ''}`} aria-label="Fila">
@@ -166,7 +170,7 @@ export function GerenteView() {
                 </div>
               );
             })}
-            {!fila.length && <div className="fl-empty"><b>Fila vazia</b>Nenhuma OP aguardando.</div>}
+            {!fila.length && <div className="fl-caixa"><Vazio icone="fila" titulo="Fila vazia">Nenhuma OP aguardando. Quando o PCP liberar um pedido, as OPs aparecem aqui.</Vazio></div>}
           </div>
         </section>
       </div>
@@ -273,11 +277,11 @@ function Confirmar({ acao, onClose }: { acao: NonNullable<Acao>; onClose: () => 
 
   return (
     <Modal onClose={onClose} label={acao.tipo === 'iniciar' ? 'Iniciar OP' : 'Finalizar OP'}>
-      <div>
+      <div className="modal-topo"><div>
         <div className="eyebrow">{acao.tipo === 'iniciar' ? 'Iniciar produção' : 'Finalizar produção'} · OP {op.numero}</div>
-        <h2 style={{ fontSize: 24, marginTop: 4 }}>{nome}</h2>
+        <h2 style={{ fontSize: 22, marginTop: 4 }}>{nome}</h2>
         <div className="fg2" style={{ marginTop: 4 }}>Lote {fmtVol(op.lote)} · tempo padrão {fmtDur(op.tempoPadraoMin)}</div>
-      </div>
+      </div></div>
 
       {acao.tipo === 'finalizar' && (
         <div className="big-stat">
@@ -286,8 +290,8 @@ function Confirmar({ acao, onClose }: { acao: NonNullable<Acao>; onClose: () => 
         </div>
       )}
       {libera.length > 0 && (
-        <div className="chip ok" style={{ whiteSpace: 'normal', padding: '8px 12px', borderRadius: 8 }}>
-          <Icon n="truck" s={14} /> Ao confirmar, o pedido {libera.map((p) => `#${p.numero} (${titulo(p.fantasia)})`).join(', ')} vai para a expedição.
+        <div className="aviso ok">
+          <Icon n="truck" s={14} /> <span>Ao confirmar, o pedido {libera.map((p) => `#${p.numero} (${titulo(p.fantasia)})`).join(', ')} vai para a expedição.</span>
         </div>
       )}
 
@@ -316,12 +320,12 @@ function Confirmar({ acao, onClose }: { acao: NonNullable<Acao>; onClose: () => 
           <textarea id="obs-atraso" className="input" rows={2} placeholder="Observação (opcional)" value={obs} onChange={(ev) => setObs(ev.target.value)} />
         </div>
       )}
-      {invalido && <div className="chip crit" style={{ whiteSpace: 'normal' }}>Confira os horários: o término precisa ser depois do início e não pode estar no futuro.</div>}
+      {invalido && <div className="aviso crit"><Icon n="alert" s={14} /> <span>Confira os horários: o término precisa ser depois do início e não pode estar no futuro.</span></div>}
 
       <div className="modal-acts">
-        <button className="btn" style={{ minHeight: 52 }} onClick={onClose}>Cancelar</button>
+        <button className="btn lg" style={{ minHeight: 52 }} onClick={onClose}>Cancelar</button>
         <button
-          className={`btn ${acao.tipo === 'iniciar' ? 'pri' : 'ok'}`}
+          className={`btn lg ${acao.tipo === 'iniciar' ? 'pri' : 'ok'}`}
           style={{ minHeight: 52, minWidth: 200, fontSize: 16 }}
           disabled={invalido || enviando || (precisaMotivo && !motivo)}
           onClick={ok}
