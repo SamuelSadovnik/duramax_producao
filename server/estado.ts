@@ -86,7 +86,7 @@ export async function carregar(c: Tx | { query: Tx['query'] }): Promise<Carregad
       pedidos,
       ops: ops.rows.map(linhaOP),
       prioridade,
-      config: { capacidade: k.capacidade, toleranciaPct: k.tolerancia_pct, feriados: k.feriados ?? [] },
+      config: { capacidade: k.capacidade, toleranciaPct: k.tolerancia_pct, prazoDiasUteis: k.prazo_dias_uteis ?? 7, feriados: k.feriados ?? [] },
       seqOP: seq.rows[0].m,
     },
     ordemDB,
@@ -167,10 +167,11 @@ export async function persistir(c: Tx, antes: Carregado, depois: Estado): Promis
     }
 
   if (!igual(A.config, depois.config)) {
-    await c.query('update config set capacidade=$1, tolerancia_pct=$2, feriados=$3 where id = 1', [
+    await c.query('update config set capacidade=$1, tolerancia_pct=$2, feriados=$3, prazo_dias_uteis=$4 where id = 1', [
       depois.config.capacidade,
       depois.config.toleranciaPct,
       JSON.stringify(depois.config.feriados),
+      depois.config.prazoDiasUteis,
     ]);
     n++;
   }

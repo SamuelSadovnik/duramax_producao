@@ -25,6 +25,6 @@ rotasCadastros.patch('/produtos/:id', exigir('pcp'), async (c) => {
 
 rotasCadastros.patch('/config', exigir('pcp'), async (c) => {
   const b = await c.req.json().catch(() => ({}));
-  const r = await mutar((e) => atualizarConfig(e, { capacidade: b.capacidade, toleranciaPct: b.toleranciaPct, feriados: b.feriados }));
+  const r = await mutar((e) => atualizarConfig(e, { capacidade: b.capacidade, toleranciaPct: b.toleranciaPct, prazoDiasUteis: b.prazoDiasUteis, feriados: b.feriados }));
   return c.json(r);
 });
