@@ -1,13 +1,18 @@
 import { useMemo, useState } from 'react';
-import { useApp } from './store';
-import { Icon, PrazoChip, estimativaTexto, nomeOP, useTip } from './ui';
-import { calcularAgenda, situacaoPrazo, statusPedido, volumePedido, type Agenda } from '../shared/engine';
+import { pode, useApp } from './store';
+import { Icon, PrazoChip, ProgressoOPs, estimativaTexto, nomeOP, useTip } from './ui';
+import { calcularAgenda, prazoDoPedido, situacaoPrazo, statusPedido, volumePedido, type Agenda } from '../shared/engine';
 import { expedienteEntre, MIN_DIA, proximoExpediente, somarExpediente, diaUtil } from '../shared/calendar';
-import { dataCurta, diaSemana, fmtDur, fmtVol, quando, titulo } from '../shared/fmt';
+import { dataCurta, dataISOparaBR, diaSemana, fmtDur, fmtVol, quando, titulo } from '../shared/fmt';
 import type { Estado, Pedido } from '../shared/types';
 import { api } from './api';
 import { inicioDoDia, somarDias } from '../shared/tz';
-import { pode } from './store';
+
+const SITUACAO: Record<string, { t: string; c: string }> = {
+  pcp: { t: 'Aguardando PCP', c: 'warn' },
+  fila: { t: 'Na fila', c: '' },
+  producao: { t: 'Em produção', c: 'info' },
+};
 
 export function FilaView() {
   const { e, executar, agora, agenda, abrirPedido, perfil } = useApp();
@@ -73,15 +78,25 @@ export function FilaView() {
     if (ok) setRascunho(null);
   };
 
+  const cont = { pcp: 0, fila: 0, producao: 0, atraso: 0 };
+  for (const p of ativos) {
+    cont[statusPedido(e, p) as 'pcp' | 'fila' | 'producao']++;
+    if (situacaoPrazo(e, p, agenda.pedidos.get(p.id), agora).tipo === 'atrasado') cont.atraso++;
+  }
+  const temOps = agendaSim.ops.size > 0;
+
   return (
     <main className="page">
       <div className="page-head">
         <div>
           <h1>Fila e previsão</h1>
-          <p>
-            Arraste para mudar a prioridade. Antes de aplicar, o sistema mostra quem adianta e quem atrasa. A previsão considera {e.config.capacidade} OP
-            {e.config.capacidade > 1 ? 's' : ''} ao mesmo tempo e o expediente de 07:30 às 17:30 com almoço de 12:00 às 13:12.
-          </p>
+          <p>Ordem em que os pedidos serão produzidos. Arraste ou use as setas; antes de aplicar, a simulação mostra quem adianta e quem atrasa.</p>
+        </div>
+        <div className="acts fila-cont">
+          <span><b className="num">{cont.producao}</b> em produção</span>
+          <span><b className="num">{cont.fila}</b> na fila</span>
+          <span><b className="num">{cont.pcp}</b> aguardando PCP</span>
+          <span className={cont.atraso ? 'mal' : ''}><b className="num">{cont.atraso}</b> com atraso</span>
         </div>
       </div>
 
@@ -103,90 +118,113 @@ export function FilaView() {
         </div>
       )}
 
-      <div className="fila-grid">
-        <section className="panel" style={{ padding: 12 }}>
-          <div className="panel-head" style={{ padding: '2px 4px 0' }}>
-            <h2>Prioridade dos pedidos</h2>
-            <span className="sp muted" style={{ fontSize: 12 }}>{ordem.length} na fila</span>
-          </div>
-          <div className="qlist">
-            {ordem.map((id, i) => {
-              const p = e.pedidos.find((x) => x.id === id)!;
-              const est = agendaSim.pedidos.get(id);
-              const d = deltas.get(id);
-              const moved = rascunho && ativos[i]?.id !== id;
-              const st = statusPedido(e, p);
-              return (
-                <div
-                  key={id}
-                  className={`qrow${arr === id ? ' drag' : ''}${sobre === id && arr !== id ? ' over' : ''}${moved ? ' moved' : ''}`}
-                  draggable={podeMexer}
-                  onDragStart={(ev) => {
-                    setArr(id);
-                    ev.dataTransfer.effectAllowed = 'move';
-                    ev.dataTransfer.setData('text/plain', id);
-                  }}
-                  onDragEnd={() => {
-                    setArr(null);
-                    setSobre(null);
-                  }}
-                  onDragOver={(ev) => {
-                    ev.preventDefault();
-                    setSobre(id);
-                  }}
-                  onDrop={(ev) => {
-                    ev.preventDefault();
-                    const de = ev.dataTransfer.getData('text/plain');
-                    if (de && de !== id) mover(de, ordem.filter((x) => x !== de).indexOf(id));
-                    setArr(null);
-                    setSobre(null);
-                  }}
-                  onMouseEnter={() => setDestaque(id)}
-                  onMouseLeave={() => setDestaque(null)}
-                >
-                  <span className="grip" aria-hidden="true">{podeMexer && <Icon n="grip" s={18} w={3} />}</span>
-                  <span className="prio">{i + 1}º</span>
-                  <button className="who" style={{ background: 'none', border: 0, textAlign: 'left', padding: 0 }} onClick={() => abrirPedido(id)}>
-                    <b>#{p.numero} · {titulo(p.fantasia)}</b>
-                    <span>
-                      {st === 'pcp' ? 'Aguardando PCP' : st === 'producao' ? 'Em produção' : 'Na fila'} · {fmtVol(volumePedido(p))}
-                    </span>
-                  </button>
-                  <div className="end">
-                    <b>{st === 'pcp' ? '—' : estimativaTexto(e, p, est, agora)}</b>
-                    {d !== undefined ? (
-                      <span className={`delta ${d > 0 ? 'pior' : 'melhor'}`}>{d > 0 ? '+' : '−'}{fmtDur(Math.abs(d))} {d > 0 ? 'atrasa' : 'adianta'}</span>
-                    ) : (
+      <section className="panel fila-tab" aria-label="Prioridade dos pedidos">
+        <div className="scroll-x">
+          <table className="t fila-t">
+            <thead>
+              <tr>
+                <th aria-label="Arrastar" />
+                <th>Pos.</th>
+                <th>Pedido</th>
+                <th>Situação</th>
+                <th className="r">Volume</th>
+                <th style={{ minWidth: 130 }}>OPs</th>
+                <th>Estimativa</th>
+                <th>Prazo</th>
+                {rascunho && <th>Mudança</th>}
+                {podeMexer && <th className="r">Mover</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {ordem.map((id, i) => {
+                const p = e.pedidos.find((x) => x.id === id)!;
+                const est = agendaSim.pedidos.get(id);
+                const d = deltas.get(id);
+                const moved = rascunho && ativos[i]?.id !== id;
+                const st = statusPedido(e, p);
+                return (
+                  <tr
+                    key={id}
+                    className={`${arr === id ? 'drag' : ''}${sobre === id && arr !== id ? ' over' : ''}${moved ? ' moved' : ''}`}
+                    draggable={podeMexer}
+                    onDragStart={(ev) => {
+                      setArr(id);
+                      ev.dataTransfer.effectAllowed = 'move';
+                      ev.dataTransfer.setData('text/plain', id);
+                    }}
+                    onDragEnd={() => {
+                      setArr(null);
+                      setSobre(null);
+                    }}
+                    onDragOver={(ev) => {
+                      ev.preventDefault();
+                      setSobre(id);
+                    }}
+                    onDrop={(ev) => {
+                      ev.preventDefault();
+                      const de = ev.dataTransfer.getData('text/plain');
+                      if (de && de !== id) mover(de, ordem.filter((x) => x !== de).indexOf(id));
+                      setArr(null);
+                      setSobre(null);
+                    }}
+                    onMouseEnter={() => setDestaque(id)}
+                    onMouseLeave={() => setDestaque(null)}
+                  >
+                    <td className="grip">{podeMexer && <Icon n="grip" s={16} w={3} />}</td>
+                    <td><span className="prio">{i + 1}º</span></td>
+                    <td className="fila-ped">
+                      <button onClick={() => abrirPedido(id)}>
+                        <span className="mono">#{p.numero}</span>
+                        <b>{titulo(p.fantasia)}</b>
+                      </button>
+                    </td>
+                    <td><span className={`chip ${SITUACAO[st].c}`}>{SITUACAO[st].t}</span></td>
+                    <td className="r num">{fmtVol(volumePedido(p))}</td>
+                    <td>{st === 'pcp' ? <span className="muted">—</span> : <ProgressoOPs e={e} p={p} />}</td>
+                    <td className="num" style={{ whiteSpace: 'nowrap' }}>{st === 'pcp' ? <span className="muted">após o PCP</span> : <b>{estimativaTexto(e, p, est, agora)}</b>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span className="num muted" style={{ marginRight: 6 }}>{dataISOparaBR(prazoDoPedido(e, p)).slice(0, 5)}</span>
                       <PrazoChip p={p} />
+                    </td>
+                    {rascunho && (
+                      <td>{d !== undefined ? <span className={`delta ${d > 0 ? 'pior' : 'melhor'}`}>{d > 0 ? '+' : '−'}{fmtDur(Math.abs(d))}</span> : <span className="muted">—</span>}</td>
                     )}
                     {podeMexer && (
-                      <div className="mv">
-                        <button aria-label="Mover para o topo" title="Para o topo" disabled={i === 0} onClick={() => mover(id, 0)}><Icon n="top" s={13} /></button>
-                        <button aria-label="Subir" disabled={i === 0} onClick={() => mover(id, i - 1)}><Icon n="up" s={13} /></button>
-                        <button aria-label="Descer" disabled={i === ordem.length - 1} onClick={() => mover(id, i + 1)}><Icon n="down" s={13} /></button>
-                      </div>
+                      <td className="r">
+                        <span className="mv">
+                          <button aria-label="Mover para o topo" title="Para o topo" disabled={i === 0} onClick={() => mover(id, 0)}><Icon n="top" s={13} /></button>
+                          <button aria-label="Subir" disabled={i === 0} onClick={() => mover(id, i - 1)}><Icon n="up" s={13} /></button>
+                          <button aria-label="Descer" disabled={i === ordem.length - 1} onClick={() => mover(id, i + 1)}><Icon n="down" s={13} /></button>
+                        </span>
+                      </td>
                     )}
-                  </div>
-                </div>
-              );
-            })}
-            {!ordem.length && <div className="empty"><b>Fila vazia</b>Nenhum pedido aguardando produção.</div>}
-          </div>
-        </section>
+                  </tr>
+                );
+              })}
+              {!ordem.length && (
+                <tr><td colSpan={10} className="empty"><b>Fila vazia</b>Nenhum pedido aguardando produção.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <section className="panel" style={{ minWidth: 0 }}>
-          <div className="panel-head">
-            <h2>Linha do tempo das OPs</h2>
-            <span className="chip">{rascunho ? 'simulação' : 'atual'}</span>
+      <section className="panel" style={{ minWidth: 0 }}>
+        <div className="panel-head">
+          <h2>Linha do tempo das OPs</h2>
+          {rascunho && <span className="chip info">simulação</span>}
+          {temOps ? (
             <div className="legend sp">
               <span><i style={{ background: 'var(--info)' }} />Em produção</span>
               <span><i style={{ background: 'var(--crit)' }} />Acima do tempo</span>
               <span><i style={{ background: 'var(--pri)' }} />Na fila</span>
             </div>
-          </div>
-          <Gantt e={e} agenda={agendaSim} destaque={destaque} />
-        </section>
-      </div>
+          ) : (
+            <span className="sp muted" style={{ fontSize: 13 }}>Aparece quando o PCP liberar pedidos e houver OPs abertas.</span>
+          )}
+        </div>
+        {temOps && <Gantt e={e} agenda={agendaSim} destaque={destaque} />}
+      </section>
     </main>
   );
 }

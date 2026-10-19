@@ -1096,3 +1096,25 @@ tr.sem-param td { background: var(--warn-bg); }
   .pcp2-resumo .rs { border-bottom: 1px solid var(--line); }
   .pcp2-liberar { grid-column: 1 / -1; }
 }
+
+/* ------------------------------------------------ fila e previsão (v2) */
+.fila-cont { gap: 18px !important; font-size: 13px; color: var(--fg-2); }
+.fila-cont b { font-size: 20px; font-stretch: 78%; font-weight: 780; color: var(--fg); margin-right: 3px; }
+.fila-cont .mal b { color: var(--crit); }
+.fila-tab { padding: 0; }
+.fila-t td { padding: 8px 10px; }
+.fila-t tbody tr { transition: background 0.1s; }
+.fila-t tbody tr:hover td { background: var(--surface-2); }
+.fila-t tr.drag { opacity: 0.4; }
+.fila-t tr.over td { box-shadow: inset 0 2px 0 var(--info); }
+.fila-t tr.moved td { background: var(--info-bg); }
+.fila-t .grip { width: 26px; color: var(--muted); cursor: grab; padding-right: 0; }
+.fila-ped button { background: none; border: 0; padding: 0; text-align: left; display: flex; gap: 8px; align-items: baseline; max-width: 320px; }
+.fila-ped .mono { font-weight: 600; font-size: 12.5px; color: var(--fg-2); }
+.fila-ped b { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fila-ped button:hover b { text-decoration: underline; text-underline-offset: 2px; }
+.fila-t .mv { display: inline-flex; gap: 3px; }
+.fila-t .mv button { border: 1px solid var(--line); background: var(--surface); border-radius: 5px; width: 26px; height: 24px; display: grid; place-items: center; padding: 0; color: var(--fg-2); }
+.fila-t .mv button:disabled { opacity: 0.3; }
+.fila-t .mv button:hover:not(:disabled) { border-color: var(--muted); color: var(--fg); }
+@media (max-width: 760px) { .fila-cont { width: 100%; justify-content: space-between; } }
