@@ -1,0 +1,46 @@
+{
+  "name": "duramax-producao",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sistema de produção da Duramax: pedidos, PCP, OPs, chão de fábrica, TV e desempenho.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "tsx watch --env-file=.env server/dev.ts",
+    "dev:web": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "tsx --env-file=.env server/dev.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "db:up": "docker compose up -d db",
+    "db:migrar": "tsx --env-file=.env scripts/migrar.ts",
+    "criar-usuario": "tsx --env-file=.env scripts/criar-usuario.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "bcryptjs": "^2.4.3",
+    "hono": "^4.6.14",
+    "jose": "^5.9.6",
+    "pdfjs-dist": "^3.11.174",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vercel/node": "^3.2.29",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}
