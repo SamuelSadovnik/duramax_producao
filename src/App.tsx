@@ -99,6 +99,26 @@ export function App() {
   );
 }
 
+const ICONES: Record<Tela, string> = {
+  pedidos: 'pedidos',
+  pcp: 'pcp',
+  fila: 'fila',
+  ops: 'ops',
+  chao: 'fabrica',
+  tv: 'tv',
+  dash: 'grafico',
+  params: 'ajustes',
+  usuarios: 'usuarios',
+};
+
+const lerRecolhido = () => {
+  try {
+    return localStorage.getItem('dmx-menu-recolhido') === '1';
+  } catch {
+    return false;
+  }
+};
+
 function Shell() {
   const { e, perfil, usuario, pedidoAberto, conexao, sair } = useApp();
   const relogio = useRelogio(10_000);
@@ -107,6 +127,8 @@ function Shell() {
     const h = lerHash();
     return h && permitidas.includes(h) ? h : permitidas[0];
   });
+  const [recolhido, setRecolhido] = useState(lerRecolhido);
+  const [gaveta, setGaveta] = useState(false);
   const [menu, setMenu] = useState(false);
   const [trocarSenha, setTrocarSenha] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -118,6 +140,7 @@ function Shell() {
       /* ignora */
     }
     window.scrollTo(0, 0);
+    setGaveta(false);
   }, [tela]);
 
   useEffect(() => {
@@ -136,71 +159,99 @@ function Shell() {
     return () => document.removeEventListener('mousedown', h);
   }, [menu]);
 
+  const alternarRecolhido = () => {
+    setRecolhido((x) => {
+      try {
+        localStorage.setItem('dmx-menu-recolhido', x ? '0' : '1');
+      } catch {
+        /* ignora */
+      }
+      return !x;
+    });
+  };
+
   const nPcp = e.pedidos.filter((p) => statusPedido(e, p) === 'pcp').length;
   const turno = situacaoTurno(relogio, e.config.feriados);
+  const turnoTxt = turno === 'producao' ? 'Produção em expediente' : turno === 'almoco' ? 'Almoço até 13:12' : 'Fora do expediente';
 
   // perfil TV: só o painel; os demais abrem a TV em tela própria e voltam
   if (perfil === 'tv') return <TVView sair={sair} rotuloSair="Sair" />;
   if (tela === 'tv') return <TVView sair={() => setTela(permitidas[0])} rotuloSair="Voltar ao sistema" />;
 
   return (
-    <>
-      <header className="top">
-        <div className="top-in">
-          <img className="top-logo" src="/logo-h-white.png" alt="Duramax Tintas e Vernizes" />
-          <div className="top-sys">
-            <b>Produção</b>
-            <span>Pedidos · PCP · Fábrica</span>
-          </div>
-          <div className="top-right">
-            {conexao === 'offline' && <span className="conexao" role="status"><Icon n="alert" s={12} /> Sem conexão</span>}
-            <span className="clock">
-              <span className={`turno ${turno === 'producao' ? 'on' : turno}`}>
-                <i />
-                {turno === 'producao' ? 'Produção em expediente' : turno === 'almoco' ? 'Almoço até 13:12' : 'Fora do expediente'}
-              </span>
-              <span className="data">{dataCurta(relogio)}</span> {hora(relogio)}
-            </span>
-            <div className="menu-user" ref={menuRef}>
-              <button onClick={() => setMenu((x) => !x)} aria-expanded={menu} aria-haspopup="menu">
-                <span className="avatar">{usuario.nome.slice(0, 1).toUpperCase()}</span>
-                {usuario.nome.split(' ')[0]}
-              </button>
-              {menu && (
-                <div className="menu-pop" role="menu">
-                  <div className="who">
-                    <b>{usuario.nome}</b>
-                    <span>{usuario.usuario} · {PERFIS.find((p) => p.k === perfil)?.l}</span>
-                  </div>
-                  <button role="menuitem" onClick={() => { setMenu(false); setTrocarSenha(true); }}><Icon n="bolt" s={14} /> Trocar minha senha</button>
-                  <button role="menuitem" onClick={sair}><Icon n="undo" s={14} /> Sair</button>
-                </div>
-              )}
+    <div className={`app${recolhido ? ' recolhido' : ''}${gaveta ? ' gaveta' : ''}`}>
+      <header className="barra-mob">
+        <button className="btn-ico" onClick={() => setGaveta(true)} aria-label="Abrir menu"><Icon n="menu" s={22} /></button>
+        <img src="/logo-h-white.png" alt="Duramax" />
+        <span className="num">{hora(relogio)}</span>
+      </header>
+      {gaveta && <div className="sb-scrim" onClick={() => setGaveta(false)} />}
+
+      <aside className="sb" aria-label="Menu">
+        <div className="sb-topo">
+          <img className="sb-logo" src="/logo-h-white.png" alt="Duramax Tintas e Vernizes" />
+          <img className="sb-icone" src="/icone.png" alt="Duramax" />
+          <button className="sb-recolher" onClick={alternarRecolhido} aria-label={recolhido ? 'Expandir menu' : 'Recolher menu'} title={recolhido ? 'Expandir menu' : 'Recolher menu'}>
+            <Icon n="recolher" s={16} />
+          </button>
+        </div>
+        <div className="sb-sys">Produção</div>
+
+        <nav className="sb-nav" aria-label="Telas">
+          {permitidas.map((t) => (
+            <button key={t} aria-current={tela === t ? 'page' : undefined} onClick={() => setTela(t)} title={NOMES[t]}>
+              <Icon n={ICONES[t]} s={19} w={1.9} />
+              <span className="sb-rot">{NOMES[t]}</span>
+              {t === 'pcp' && nPcp > 0 && <span className="sb-badge">{nPcp}</span>}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sb-rodape">
+          {conexao === 'offline' && (
+            <div className="sb-off" role="status"><Icon n="alert" s={14} /><span className="sb-rot">Sem conexão</span></div>
+          )}
+          <div className={`sb-turno ${turno}`} title={turnoTxt}>
+            <i />
+            <div className="sb-rot">
+              <b className="num">{hora(relogio)}</b>
+              <span>{dataCurta(relogio)} · {turnoTxt}</span>
             </div>
           </div>
+          <div className="sb-user" ref={menuRef}>
+            <button onClick={() => setMenu((x) => !x)} aria-expanded={menu} aria-haspopup="menu" title={usuario.nome}>
+              <span className="avatar">{usuario.nome.slice(0, 1).toUpperCase()}</span>
+              <span className="sb-rot">
+                <b>{usuario.nome}</b>
+                <span>{PERFIS.find((p) => p.k === perfil)?.l}</span>
+              </span>
+            </button>
+            {menu && (
+              <div className="menu-pop" role="menu">
+                <div className="who">
+                  <b>{usuario.nome}</b>
+                  <span>{usuario.usuario} · {PERFIS.find((p) => p.k === perfil)?.l}</span>
+                </div>
+                <button role="menuitem" onClick={() => { setMenu(false); setTrocarSenha(true); }}><Icon n="chave" s={15} /> Trocar minha senha</button>
+                <button role="menuitem" onClick={sair}><Icon n="sair" s={15} /> Sair</button>
+              </div>
+            )}
+          </div>
         </div>
-        {permitidas.length > 1 && (
-          <nav className="nav" aria-label="Telas">
-            {permitidas.map((t) => (
-              <button key={t} aria-current={tela === t ? 'page' : undefined} onClick={() => setTela(t)}>
-                {t === 'tv' && <Icon n="tv" s={15} />}
-                {NOMES[t]}
-                {t === 'pcp' && nPcp > 0 && <span className="count">{nPcp}</span>}
-              </button>
-            ))}
-          </nav>
-        )}
-      </header>
-      {tela === 'pedidos' && <PedidosView />}
-      {tela === 'pcp' && <PCPView />}
-      {tela === 'fila' && <FilaView />}
-      {tela === 'ops' && <OPsView />}
-      {tela === 'chao' && <GerenteView />}
-      {tela === 'dash' && <DashboardView />}
-      {tela === 'params' && <ParamsView />}
-      {tela === 'usuarios' && <UsuariosView />}
+      </aside>
+
+      <div className="conteudo">
+        {tela === 'pedidos' && <PedidosView />}
+        {tela === 'pcp' && <PCPView />}
+        {tela === 'fila' && <FilaView />}
+        {tela === 'ops' && <OPsView />}
+        {tela === 'chao' && <GerenteView />}
+        {tela === 'dash' && <DashboardView />}
+        {tela === 'params' && <ParamsView />}
+        {tela === 'usuarios' && <UsuariosView />}
+      </div>
       {pedidoAberto && <DetalhePedido />}
       {trocarSenha && <TrocarSenha onClose={() => setTrocarSenha(false)} />}
-    </>
+    </div>
   );
 }

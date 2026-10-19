@@ -26,6 +26,18 @@ const P: Record<string, string> = {
   file: 'M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8l-5-5Zm0 0v5h5',
   bolt: 'M13 3 4 14h7l-1 7 9-11h-7l1-7Z',
   info: 'M12 16v-5m0-3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+  pedidos: 'M4 5h16v14H4zM4 9h16M9 9v10',
+  pcp: 'M9 4h6v3H9zM7 5H5v16h14V5h-2M8.5 13l2.5 2.5 4.5-5',
+  fila: 'M4 6h10M4 12h16M4 18h7M17 4l3 2-3 2',
+  ops: 'M12 3 3 8l9 5 9-5-9-5ZM3 13l9 5 9-5',
+  fabrica: 'M3 21V10l6 4V10l6 4V6l6 3v12H3ZM7 17h2m4 0h2',
+  grafico: 'M4 20V4M4 20h16M8 16v-5m4 5V8m4 8v-3',
+  ajustes: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6',
+  usuarios: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-6 9a6 6 0 0 1 12 0M16 4.5a3.5 3.5 0 0 1 0 6.5M21 20a5 5 0 0 0-3.5-4.8',
+  menu: 'M4 7h16M4 12h16M4 17h16',
+  recolher: 'M15 6l-6 6 6 6',
+  sair: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
+  chave: 'M14 10a4 4 0 1 0-3.5 3.97L9 15.5V18H6.5v2.5H4V18l6.03-6.03A4 4 0 0 0 14 10Zm1.5-1.5h.01',
 };
 
 export function Icon({ n, s = 16, w = 2 }: { n: keyof typeof P | string; s?: number; w?: number }) {
