@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from './store';
-import { Icon, PedChips, nomeOP } from './ui';
+import { Icon, PedChips, Vazio, nomeOP } from './ui';
 import { alocado, chavePrioridade } from '../shared/engine';
 import { fmtDur, fmtVol, nf, quando } from '../shared/fmt';
 import type { StatusOP } from '../shared/types';
@@ -32,6 +32,13 @@ export function OPsView() {
       .slice(0, f === 'concluida' ? 80 : 999);
   }, [e, f, q, agenda]);
 
+  const contagem = {
+    abertas: e.ops.filter((o) => o.status !== 'concluida').length,
+    producao: e.ops.filter((o) => o.status === 'producao').length,
+    fila: e.ops.filter((o) => o.status === 'fila').length,
+    concluida: e.ops.filter((o) => o.status === 'concluida').length,
+  };
+
   return (
     <main className="page">
       <div className="page-head">
@@ -46,17 +53,21 @@ export function OPsView() {
             <input id="busca-op" className="input" placeholder="Nº da OP ou produto" value={q} onChange={(ev) => setQ(ev.target.value)} />
           </label>
           <div className="seg" role="group" aria-label="Situação">
-            {FILTROS.map((x) => <button key={x.k} aria-pressed={f === x.k} onClick={() => setF(x.k)}>{x.l}</button>)}
+            {FILTROS.map((x) => (
+              <button key={x.k} aria-pressed={f === x.k} onClick={() => setF(x.k)}>
+                {x.l} <span className="muted num">{contagem[x.k]}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
-      <section className="panel" style={{ padding: 0 }}>
+      <section className="panel flush">
         <div className="scroll-x">
-          <table className="t">
+          <table className="t cartoes-tab">
             <thead>
               <tr>
-                <th>OP</th><th>Produto</th><th className="r">Lote</th><th className="r">Alocado</th><th>Pedidos</th><th>Situação</th>
-                <th>{f === 'concluida' ? 'Início' : 'Início (prev.)'}</th><th>{f === 'concluida' ? 'Fim' : 'Fim (prev.)'}</th><th className="r">Padrão</th><th className="r">Real</th>
+                <th className="w-min">OP</th><th>Produto</th><th className="r">Lote</th><th className="r hide-tab">Alocado</th><th>Pedidos</th><th>Situação</th>
+                <th className="hide-tab">{f === 'concluida' ? 'Início' : 'Início (prev.)'}</th><th>{f === 'concluida' ? 'Fim' : 'Fim (prev.)'}</th><th className="r">Padrão</th><th className="r">Real</th>
               </tr>
             </thead>
             <tbody>
@@ -67,12 +78,15 @@ export function OPsView() {
                 const al = alocado(o);
                 return (
                   <tr key={o.id}>
-                    <td className="mono">{o.numero}</td>
-                    <td style={{ minWidth: 220 }}>{nomeOP(e, o)}<div className="mono muted" style={{ fontSize: 11 }}>{o.produtoId}</div></td>
-                    <td className="r num">{fmtVol(o.lote)}</td>
-                    <td className="r num">{nf((al / o.lote) * 100)}%</td>
-                    <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}><PedChips e={e} o={o} /></div></td>
-                    <td>
+                    <td className="mono w-min cel-oculta">{o.numero}</td>
+                    <td className="cel-tit" style={{ minWidth: 220 }}>
+                      <span className="nome">{nomeOP(e, o)}</span>
+                      <span className="sub mono">{o.produtoId}<span className="so-cel"> · OP {o.numero}</span></span>
+                    </td>
+                    <td className="r num nw" data-l="Lote">{fmtVol(o.lote)}</td>
+                    <td className="r num hide-tab" data-l="Alocado">{nf((al / o.lote) * 100)}%</td>
+                    <td data-l="Pedidos"><div className="chips"><PedChips e={e} o={o} max={2} /></div></td>
+                    <td data-l="Situação">
                       {o.status === 'concluida' ? (
                         <span className="chip ok">Concluída</span>
                       ) : o.status === 'producao' ? (
@@ -81,10 +95,10 @@ export function OPsView() {
                         <span className="chip">Na fila</span>
                       )}
                     </td>
-                    <td className="num" style={{ whiteSpace: 'nowrap' }}>{ini ? quando(ini, agora) : '—'}</td>
-                    <td className="num" style={{ whiteSpace: 'nowrap' }}>{fim ? quando(fim, agora) : '—'}</td>
-                    <td className="r num">{fmtDur(o.tempoPadraoMin)}</td>
-                    <td className="r num">
+                    <td className="num nw hide-tab" data-l={f === 'concluida' ? 'Início' : 'Início (prev.)'}>{ini ? quando(ini, agora) : '—'}</td>
+                    <td className="num nw" data-l={f === 'concluida' ? 'Fim' : 'Fim (prev.)'}>{fim ? quando(fim, agora) : '—'}</td>
+                    <td className="r num" data-l="Padrão">{fmtDur(o.tempoPadraoMin)}</td>
+                    <td className="r num" data-l="Real">
                       {o.realMin !== undefined ? (
                         <span style={{ color: o.realMin > o.tempoPadraoMin * tol ? 'var(--crit)' : 'var(--ok)', fontWeight: 650 }}>{fmtDur(o.realMin)}</span>
                       ) : (
@@ -94,7 +108,15 @@ export function OPsView() {
                   </tr>
                 );
               })}
-              {!lista.length && <tr><td colSpan={10} className="empty">Nenhuma OP neste filtro.</td></tr>}
+              {!lista.length && (
+                <tr>
+                  <td colSpan={10} className="vazio-td">
+                    <Vazio icone="ops" titulo={q ? 'Nenhuma OP com essa busca' : 'Nenhuma OP aqui'}>
+                      {q ? 'Confira o número ou o nome do produto.' : 'As OPs aparecem quando o PCP libera um pedido.'}
+                    </Vazio>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

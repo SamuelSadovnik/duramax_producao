@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { pode, useApp } from './store';
-import { Icon, PrazoChip, ProgressoOPs, estimativaTexto, nomeOP, useTip } from './ui';
+import { Icon, PrazoChip, ProgressoOPs, Vazio, estimativaTexto, nomeOP, useTip } from './ui';
 import { calcularAgenda, prazoDoPedido, situacaoPrazo, statusPedido, volumePedido, type Agenda } from '../shared/engine';
 import { expedienteEntre, MIN_DIA, proximoExpediente, somarExpediente, diaUtil } from '../shared/calendar';
 import { dataCurta, dataISOparaBR, diaSemana, fmtDur, fmtVol, quando, titulo } from '../shared/fmt';
@@ -92,11 +92,11 @@ export function FilaView() {
           <h1>Fila e previsão</h1>
           <p>Ordem em que os pedidos serão produzidos. Arraste ou use as setas; antes de aplicar, a simulação mostra quem adianta e quem atrasa.</p>
         </div>
-        <div className="acts fila-cont">
-          <span><b className="num">{cont.producao}</b> em produção</span>
-          <span><b className="num">{cont.fila}</b> na fila</span>
-          <span><b className="num">{cont.pcp}</b> aguardando PCP</span>
-          <span className={cont.atraso ? 'mal' : ''}><b className="num">{cont.atraso}</b> com atraso</span>
+        <div className="acts stats-linha">
+          <span className="stat-mini"><b className="num">{cont.producao}</b> em produção</span>
+          <span className="stat-mini"><b className="num">{cont.fila}</b> na fila</span>
+          <span className="stat-mini"><b className="num">{cont.pcp}</b> aguardando PCP</span>
+          <span className={`stat-mini${cont.atraso ? ' mal' : ''}`}><b className="num">{cont.atraso}</b> com atraso</span>
         </div>
       </div>
 
@@ -118,17 +118,17 @@ export function FilaView() {
         </div>
       )}
 
-      <section className="panel fila-tab" aria-label="Prioridade dos pedidos">
+      <section className="panel flush" aria-label="Prioridade dos pedidos">
         <div className="scroll-x">
-          <table className="t fila-t">
+          <table className="t fila-t cartoes-tab">
             <thead>
               <tr>
-                <th aria-label="Arrastar" />
-                <th>Pos.</th>
+                <th className="w-min" aria-label="Arrastar" />
+                <th className="w-min">Pos.</th>
                 <th>Pedido</th>
                 <th>Situação</th>
                 <th className="r">Volume</th>
-                <th style={{ minWidth: 130 }}>OPs</th>
+                <th className="hide-tab" style={{ minWidth: 150 }}>OPs</th>
                 <th>Estimativa</th>
                 <th>Prazo</th>
                 {rascunho && <th>Mudança</th>}
@@ -170,27 +170,30 @@ export function FilaView() {
                     onMouseEnter={() => setDestaque(id)}
                     onMouseLeave={() => setDestaque(null)}
                   >
-                    <td className="grip">{podeMexer && <Icon n="grip" s={16} w={3} />}</td>
-                    <td><span className="prio">{i + 1}º</span></td>
-                    <td className="fila-ped">
+                    <td className="grip cel-oculta">{podeMexer && <Icon n="grip" s={16} w={3} />}</td>
+                    <td className="cel-oculta"><span className="prio">{i + 1}º</span></td>
+                    <td className="fila-ped cel-tit">
                       <button onClick={() => abrirPedido(id)}>
+                        <span className="prio so-cel">{i + 1}º</span>
                         <span className="mono">#{p.numero}</span>
                         <b>{titulo(p.fantasia)}</b>
                       </button>
                     </td>
-                    <td><span className={`chip ${SITUACAO[st].c}`}>{SITUACAO[st].t}</span></td>
-                    <td className="r num">{fmtVol(volumePedido(p))}</td>
-                    <td>{st === 'pcp' ? <span className="muted">—</span> : <ProgressoOPs e={e} p={p} />}</td>
-                    <td className="num" style={{ whiteSpace: 'nowrap' }}>{st === 'pcp' ? <span className="muted">após o PCP</span> : <b>{estimativaTexto(e, p, est, agora)}</b>}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <span className="num muted" style={{ marginRight: 6 }}>{dataISOparaBR(prazoDoPedido(e, p)).slice(0, 5)}</span>
-                      <PrazoChip p={p} />
+                    <td data-l="Situação"><span className={`chip ${SITUACAO[st].c}`}>{SITUACAO[st].t}</span></td>
+                    <td className="r num nw" data-l="Volume">{fmtVol(volumePedido(p))}</td>
+                    <td className="hide-tab cel-larga" data-l="OPs">{st === 'pcp' ? <span className="muted">—</span> : <ProgressoOPs e={e} p={p} />}</td>
+                    <td className="num nw" data-l="Estimativa">{st === 'pcp' ? <span className="muted">após o PCP</span> : <b>{estimativaTexto(e, p, est, agora)}</b>}</td>
+                    <td data-l="Prazo">
+                      <span className="prazo-cel">
+                        <span className="num muted">{dataISOparaBR(prazoDoPedido(e, p)).slice(0, 5)}</span>
+                        <PrazoChip p={p} />
+                      </span>
                     </td>
                     {rascunho && (
-                      <td>{d !== undefined ? <span className={`delta ${d > 0 ? 'pior' : 'melhor'}`}>{d > 0 ? '+' : '−'}{fmtDur(Math.abs(d))}</span> : <span className="muted">—</span>}</td>
+                      <td data-l="Mudança">{d !== undefined ? <span className={`delta ${d > 0 ? 'pior' : 'melhor'}`}>{d > 0 ? '+' : '−'}{fmtDur(Math.abs(d))}</span> : <span className="muted">—</span>}</td>
                     )}
                     {podeMexer && (
-                      <td className="r">
+                      <td className="r w-min" data-l="Mover">
                         <span className="mv">
                           <button aria-label="Mover para o topo" title="Para o topo" disabled={i === 0} onClick={() => mover(id, 0)}><Icon n="top" s={13} /></button>
                           <button aria-label="Subir" disabled={i === 0} onClick={() => mover(id, i - 1)}><Icon n="up" s={13} /></button>
@@ -202,14 +205,18 @@ export function FilaView() {
                 );
               })}
               {!ordem.length && (
-                <tr><td colSpan={10} className="empty"><b>Fila vazia</b>Nenhum pedido aguardando produção.</td></tr>
+                <tr>
+                  <td colSpan={10} className="vazio-td">
+                    <Vazio icone="fila" titulo="Fila vazia">Nenhum pedido aguardando produção.</Vazio>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
 
-      <section className="panel" style={{ minWidth: 0 }}>
+      <section className="panel">
         <div className="panel-head">
           <h2>Linha do tempo das OPs</h2>
           {rascunho && <span className="chip info">simulação</span>}
@@ -220,7 +227,7 @@ export function FilaView() {
               <span><i style={{ background: 'var(--pri)' }} />Na fila</span>
             </div>
           ) : (
-            <span className="sp muted" style={{ fontSize: 13 }}>Aparece quando o PCP liberar pedidos e houver OPs abertas.</span>
+            <span className="sp nota">Aparece quando o PCP liberar pedidos e houver OPs abertas.</span>
           )}
         </div>
         {temOps && <Gantt e={e} agenda={agendaSim} destaque={destaque} />}
@@ -237,7 +244,7 @@ function Gantt({ e, agenda, destaque }: { e: Estado; agenda: Agenda; destaque: s
     .map(([id, pv]) => ({ op: e.ops.find((o) => o.id === id)!, pv }))
     .filter((x) => x.op)
     .sort((a, b) => a.pv.inicio.getTime() - b.pv.inicio.getTime());
-  if (!ops.length) return <div className="empty"><b>Nenhuma OP aberta</b>Libere pedidos no PCP para montar a agenda.</div>;
+  if (!ops.length) return <Vazio compacto icone="ops" titulo="Nenhuma OP aberta">Libere pedidos no PCP para montar a agenda.</Vazio>;
 
   const inicio0 = new Date(Math.min(proximoExpediente(agora, fer).getTime(), ...ops.map((o) => o.pv.inicio.getTime())));
   const ini = proximoExpediente(inicioDoDia(inicio0), fer);
@@ -306,7 +313,7 @@ function Gantt({ e, agenda, destaque }: { e: Estado; agenda: Agenda; destaque: s
         })}
       </div>
       {tip.el}
-      <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+      <div className="gantt-nota">
         Eixo em horas de expediente: noites, almoço, fins de semana e feriados não aparecem. Linha vermelha = agora. Começa em {quando(somarExpediente(ini, 0, fer), agora)}.
       </div>
     </div>
