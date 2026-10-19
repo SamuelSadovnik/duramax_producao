@@ -86,15 +86,26 @@ export function ProgressoOPs({ e, p }: { e: Estado; p: Pedido }) {
   const late = run.filter((o) => agenda.ops.get(o.id)?.atrasada).length;
   const tot = ops.length;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div className="bar" style={{ flex: 1 }} aria-hidden="true">
+    <div className="progresso">
+      <div className="bar" aria-hidden="true">
         {done > 0 && <i className="done" style={{ width: `${(done / tot) * 100}%` }} />}
         {run.length - late > 0 && <i className="run" style={{ width: `${((run.length - late) / tot) * 100}%` }} />}
         {late > 0 && <i className="late" style={{ width: `${(late / tot) * 100}%` }} />}
       </div>
-      <span className="num muted" style={{ fontSize: 11.5 }}>
+      <span className="num">
         {done}/{tot} OP{tot > 1 ? 's' : ''}
       </span>
+    </div>
+  );
+}
+
+/** Estado vazio padrão: ícone, título e uma frase do que fazer. */
+export function Vazio({ icone = 'info', titulo, children, compacto }: { icone?: string; titulo: string; children?: ReactNode; compacto?: boolean }) {
+  return (
+    <div className={`vazio${compacto ? ' compacto' : ''}`}>
+      <span className="vazio-ic"><Icon n={icone} s={compacto ? 17 : 21} w={1.8} /></span>
+      <b>{titulo}</b>
+      {children && <span>{children}</span>}
     </div>
   );
 }
@@ -163,7 +174,7 @@ export function PedChips({ e, o, max = 3 }: { e: Estado; o: OP; max?: number }) 
         const p = e.pedidos.find((x) => x.id === a.pedidoId);
         if (!p) return null;
         return (
-          <button key={a.pedidoId} className="chip info" style={{ border: 0, cursor: 'pointer' }} onClick={() => abrirPedido(p.id)} title={p.fantasia}>
+          <button key={a.pedidoId} className="chip info" onClick={() => abrirPedido(p.id)} title={p.fantasia}>
             #{p.numero}
           </button>
         );
