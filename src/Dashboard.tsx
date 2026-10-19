@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useApp } from './store';
 import { Icon, Modal, nomeOP, useTip } from './ui';
 import { fimDoDia, diaUtil } from '../shared/calendar';
-import { dataCurta, diaSemana, fmtDur, fmtVol, hora, nf, quando, titulo } from '../shared/fmt';
+import { dataCurta, diaSemana, fmtDur, fmtVol, hora, mesmoDia, nf, quando, titulo } from '../shared/fmt';
 import { LINHAS, nomeLinha } from '../shared/catalog';
 import type { OP } from '../shared/types';
 import { prazoDoPedido } from '../shared/engine';
@@ -96,14 +96,17 @@ export function DashboardView() {
       c = somarDias(c, -1);
     }
     const ch = (x: Date) => iso(x);
-    const vd = new Map(dias.map((x) => [ch(x), { v: 0, n: 0, late: 0 }]));
+    const vd = new Map(dias.map((x) => [ch(x), { v: 0, n: 0, late: 0, vl: 0 }]));
     for (const o of e.ops)
       if (o.status === 'concluida' && o.fim && (!linha || o.produtoId.split('.')[0] === linha)) {
         const k = vd.get(ch(new Date(o.fim)));
         if (k) {
           k.v += o.lote;
           k.n++;
-          if (atrasou(o)) k.late++;
+          if (atrasou(o)) {
+            k.late++;
+            k.vl += o.lote;
+          }
         }
       }
     const serie = dias.map((x) => ({ d: x, ...vd.get(ch(x))! }));
@@ -154,10 +157,10 @@ export function DashboardView() {
         {d.ops.length ? (
           <p>
             {nomePeriodo}, a fábrica concluiu <b>{d.ops.length} OPs</b> ({fmtVol(d.vol)}).{' '}
-            <b className="ok-t">{d.ops.length - d.late.length} ficaram dentro do tempo</b>
+            <b className="ok-t">{d.ops.length - d.late.length} {d.ops.length - d.late.length === 1 ? 'ficou' : 'ficaram'} dentro do tempo</b>
             {d.late.length > 0 && (
               <>
-                {' '}e <b className="crit-t">{d.late.length} passaram do padrão</b>, somando <b className="crit-t">{fmtDur(d.horasPerdidas)} a mais</b>
+                {' '}e <b className="crit-t">{d.late.length} {d.late.length === 1 ? 'passou' : 'passaram'} do padrão</b>, somando <b className="crit-t">{fmtDur(d.horasPerdidas)} a mais</b>
                 {topMotivo && <>. A principal causa foi <b>{topMotivo.k.toLowerCase()}</b> ({fmtDur(topMotivo.min)})</>}
               </>
             )}
@@ -171,12 +174,9 @@ export function DashboardView() {
       <div className="kpis kpis4">
         <div className="kpi">
           <span className="l">OPs dentro do tempo</span>
-          <span className="v">{d.ops.length - d.late.length}<small>de {d.ops.length}</small></span>
-          <div className="meter" aria-hidden="true">
-            <i className="okb" style={{ width: `${pctNoTempo}%` }} />
-            <i className="crb" style={{ width: `${100 - pctNoTempo}%` }} />
-          </div>
-          <span className="s">{pctNoTempo}% · tolerância de {e.config.toleranciaPct}%</span>
+          <span className="v">{d.ops.length ? d.ops.length - d.late.length : '—'}{d.ops.length > 0 && <small>de {d.ops.length}</small>}</span>
+          <Medidor ok={d.ops.length - d.late.length} total={d.ops.length} />
+          <span className="s">{d.ops.length ? `${pctNoTempo}% · ` : ''}tolerância de {e.config.toleranciaPct}%</span>
         </div>
         <div className="kpi">
           <span className="l">Tempo perdido</span>
@@ -185,12 +185,9 @@ export function DashboardView() {
         </div>
         <div className="kpi">
           <span className="l">Pedidos prontos no prazo</span>
-          <span className="v">{d.pedNoPrazo}<small>de {d.prontos.length}</small></span>
-          <div className="meter" aria-hidden="true">
-            <i className="okb" style={{ width: `${pctPrazo}%` }} />
-            <i className="crb" style={{ width: `${d.prontos.length ? 100 - pctPrazo : 0}%` }} />
-          </div>
-          <span className="s">{pctPrazo}% liberados em até {e.config.prazoDiasUteis} dias úteis</span>
+          <span className="v">{d.prontos.length ? d.pedNoPrazo : '—'}{d.prontos.length > 0 && <small>de {d.prontos.length}</small>}</span>
+          <Medidor ok={d.pedNoPrazo} total={d.prontos.length} />
+          <span className="s">{d.prontos.length ? `${pctPrazo}% ` : ''}liberados em até {e.config.prazoDiasUteis} dias úteis</span>
         </div>
         <div className="kpi">
           <span className="l">Volume produzido</span>
@@ -199,6 +196,14 @@ export function DashboardView() {
         </div>
       </div>
 
+      {!d.ops.length ? (
+        <div className="panel vazio-grande">
+          <Icon n="grafico" s={36} w={1.6} />
+          <b>Ainda não há OPs concluídas {periodo === 'hoje' ? 'hoje' : 'neste período'}</b>
+          <span>Os gráficos aparecem quando o gerente finalizar as primeiras OPs no chão de fábrica.</span>
+        </div>
+      ) : (
+        <>
       <div className="perdas">
         <section className="panel">
           <div className="panel-head"><h2>Onde o tempo foi perdido: por motivo</h2></div>
@@ -333,6 +338,8 @@ export function DashboardView() {
         <Colunas serie={d.serie} />
       </section>
 
+        </>
+      )}
       <div className="muted" style={{ fontSize: 11.5 }}>Considera as OPs concluídas nos últimos 120 dias. As OPs que o gerente finalizar entram aqui na hora. Atualizado {hora(agora)}.</div>
       {opAberta && <DetalheOP id={opAberta} onClose={() => setOpAberta(null)} />}
     </main>
@@ -414,39 +421,101 @@ function DetalheOP({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-function Colunas({ serie }: { serie: { d: Date; v: number; n: number; late: number }[] }) {
+function passoBonito(max: number) {
+  const bruto = max / 4;
+  const p = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const n = bruto / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+}
+
+function Medidor({ ok, total }: { ok: number; total: number }) {
+  if (!total) return <div className="meter vazio" aria-hidden="true" />;
+  const p = (ok / total) * 100;
+  return (
+    <div className="meter" aria-hidden="true">
+      {p > 0 && <i className="okb" style={{ width: `${p}%` }} />}
+      {p < 100 && <i className="crb" style={{ width: `${100 - p}%` }} />}
+    </div>
+  );
+}
+
+function Colunas({ serie }: { serie: { d: Date; v: number; n: number; late: number; vl: number }[] }) {
   const tip = useTip();
   const W = 900;
-  const H = 180;
-  const B = 22;
+  const H = 230;
+  const B = 34;
+  const T = 20;
+  const E = 48;
   const max = Math.max(1, ...serie.map((s) => s.v));
-  const topo = Math.ceil(max / 500) * 500;
-  const media = serie.reduce((s, x) => s + x.v, 0) / serie.length;
-  const bw = (W - 46) / serie.length;
-  const y = (v: number) => H - B - (v / topo) * (H - B - 12);
+  const passo = passoBonito(max);
+  const topo = Math.ceil(max / passo) * passo;
+  const ticks: number[] = [];
+  for (let t = 0; t <= topo + 1e-6; t += passo) ticks.push(t);
+  const comVolume = serie.filter((s) => s.v > 0);
+  const media = comVolume.length ? comVolume.reduce((s, x) => s + x.v, 0) / comVolume.length : 0;
+  const bw = (W - E) / serie.length;
+  const larg = Math.min(34, bw * 0.62);
+  const y = (v: number) => H - B - (v / topo) * (H - B - T);
+  const rot = (t: number) => (t >= 1000 ? `${nf(t / 1000, t % 1000 ? 1 : 0)} mil` : nf(t));
+  const hoje = new Date();
   return (
     <div>
+      <div className="legend" style={{ marginBottom: 6 }}>
+        <span><i style={{ background: 'var(--pri)' }} />No tempo</span>
+        <span><i style={{ background: 'var(--crit)' }} />Acima do tempo</span>
+        <span><i style={{ background: 'none', borderTop: '2px dashed var(--fg-2)', height: 0, width: 14, borderRadius: 0 }} />Média dos dias com produção</span>
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Litros produzidos por dia útil">
-        {[0, topo / 2, topo].map((t) => (
+        {ticks.map((t) => (
           <g key={t}>
-            <line x1={42} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
-            <text x={36} y={y(t) + 4} textAnchor="end">{t >= 1000 ? `${nf(t / 1000, t % 1000 ? 1 : 0)} mil` : nf(t)}</text>
+            <line x1={E - 6} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeDasharray={t ? '2 4' : undefined} />
+            <text x={E - 12} y={y(t) + 4} textAnchor="end">{rot(t)}</text>
           </g>
         ))}
         {serie.map((s, i) => {
-          const hx = 46 + i * bw;
+          const cx = E + i * bw + bw / 2;
+          const x = cx - larg / 2;
+          const ehHoje = mesmoDia(s.d, hoje);
+          const vOk = s.v - s.vl;
+          const yOk = y(vOk);
+          const yTot = y(s.v);
           return (
-            <g key={i} {...tip.bind(<><b>{diaSemana(s.d)} {dataCurta(s.d)}</b>{fmtVol(s.v)} em {s.n} OP{s.n === 1 ? '' : 's'}{s.late ? ` · ${s.late} acima do tempo` : ''}</>)}>
-              <rect x={hx} y={8} width={bw} height={H - B - 8} fill="transparent" />
-              {s.v > 0 && <rect x={hx + 4} y={y(s.v)} width={bw - 8} height={H - B - y(s.v)} rx={4} fill="var(--pri)" />}
-              <text x={hx + bw / 2} y={H - 6} textAnchor="middle">{dataCurta(s.d)}</text>
+            <g
+              key={i}
+              {...tip.bind(
+                <>
+                  <b>{diaSemana(s.d)} {dataCurta(s.d)}</b>
+                  {s.v ? `${fmtVol(s.v)} em ${s.n} OP${s.n === 1 ? '' : 's'}` : 'Nada concluído'}
+                  {s.late ? <><br />{s.late} acima do tempo ({fmtVol(s.vl)})</> : null}
+                </>,
+              )}
+            >
+              <rect x={E + i * bw} y={T} width={bw} height={H - B - T} fill="transparent" />
+              {vOk > 0 && <rect x={x} y={yOk} width={larg} height={H - B - yOk} rx={s.vl ? 0 : 4} fill="var(--pri)" />}
+              {s.vl > 0 && <rect x={x} y={yTot} width={larg} height={Math.max(2, yOk - yTot - 2)} rx={4} fill="var(--crit)" />}
+              {vOk > 0 && s.vl > 0 && <rect x={x} y={yOk - 4} width={larg} height={4} fill="var(--pri)" />}
+              {s.v > 0 && (
+                <text x={cx} y={yTot - 6} textAnchor="middle" className="lbl-strong" style={{ fontSize: 10.5 }}>
+                  {s.v >= 1000 ? `${nf(s.v / 1000, 1)}k` : nf(s.v)}
+                </text>
+              )}
+              <text x={cx} y={H - 18} textAnchor="middle" style={{ fontWeight: ehHoje ? 700 : 400, fill: ehHoje ? 'var(--fg)' : undefined }}>
+                {diaSemana(s.d)}
+              </text>
+              <text x={cx} y={H - 5} textAnchor="middle" style={{ fontSize: 10, fontWeight: ehHoje ? 700 : 400, fill: ehHoje ? 'var(--fg)' : undefined }}>
+                {ehHoje ? 'hoje' : dataCurta(s.d)}
+              </text>
             </g>
           );
         })}
-        <line x1={42} x2={W} y1={y(media)} y2={y(media)} stroke="var(--fg-2)" strokeDasharray="4 4" strokeWidth={1.5} />
-        <text x={50} y={y(media) - 6} className="lbl-strong" style={{ paintOrder: 'stroke', stroke: 'var(--surface)', strokeWidth: 5, strokeLinejoin: 'round' }}>
-          média {fmtVol(media)}/dia
-        </text>
+        {media > 0 && (
+          <>
+            <line x1={E - 6} x2={W} y1={y(media)} y2={y(media)} stroke="var(--fg-2)" strokeDasharray="5 4" strokeWidth={1.5} />
+            <text x={W - 4} y={y(media) - 6} textAnchor="end" className="lbl-strong" style={{ paintOrder: 'stroke', stroke: 'var(--surface)', strokeWidth: 5, strokeLinejoin: 'round' }}>
+              média {fmtVol(media)}
+            </text>
+          </>
+        )}
       </svg>
       {tip.el}
     </div>
