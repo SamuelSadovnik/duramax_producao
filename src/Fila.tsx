@@ -100,39 +100,21 @@ export function FilaView() {
         </div>
       </div>
 
-      {rascunho && (
-        <div className="sim-band" role="status">
-          <Icon n="info" s={18} />
-          <span>
-            <b>Simulação:</b> {piores} pedido{piores === 1 ? '' : 's'} atrasa{piores === 1 ? '' : 'm'}, {melhores} adianta{melhores === 1 ? '' : 'm'}
-            {novosAtrasos.length > 0 && (
-              <>
-                {' '}· <b style={{ color: 'var(--crit)' }}>{novosAtrasos.map((p) => `#${p.numero}`).join(', ')} passa{novosAtrasos.length > 1 ? 'm' : ''} a estourar o prazo</b>
-              </>
-            )}
-          </span>
-          <div className="acts">
-            <button className="btn sm" onClick={() => setRascunho(null)}>Descartar</button>
-            <button className="btn sm pri" onClick={aplicar}>Aplicar prioridade</button>
-          </div>
-        </div>
-      )}
-
       <section className="panel flush" aria-label="Prioridade dos pedidos">
         <div className="scroll-x">
-          <table className="t fila-t cartoes-tab">
+          <table className="t fila-t cartoes-tab" style={{ minWidth: 1060 }}>
             <thead>
               <tr>
-                <th className="w-min" aria-label="Arrastar" />
-                <th className="w-min">Pos.</th>
+                <th style={{ width: 40 }} aria-label="Arrastar" />
+                <th style={{ width: 64 }}>Pos.</th>
                 <th>Pedido</th>
-                <th>Situação</th>
-                <th className="r">Volume</th>
-                <th className="hide-tab" style={{ minWidth: 150 }}>OPs</th>
-                <th>Estimativa</th>
-                <th>Prazo</th>
-                {rascunho && <th>Mudança</th>}
-                {podeMexer && <th className="r">Mover</th>}
+                <th style={{ width: 150 }}>Situação</th>
+                <th className="r" style={{ width: 100 }}>Volume</th>
+                <th className="hide-md" style={{ width: 170 }}>OPs</th>
+                <th style={{ width: 140 }}>Estimativa</th>
+                <th style={{ width: 196 }}>Prazo</th>
+                <th style={{ width: 96 }}>Mudança</th>
+                {podeMexer && <th className="r" style={{ width: 132 }}>Mover</th>}
               </tr>
             </thead>
             <tbody>
@@ -181,7 +163,7 @@ export function FilaView() {
                     </td>
                     <td data-l="Situação"><span className={`chip ${SITUACAO[st].c}`}>{SITUACAO[st].t}</span></td>
                     <td className="r num nw" data-l="Volume">{fmtVol(volumePedido(p))}</td>
-                    <td className="hide-tab cel-larga" data-l="OPs">{st === 'pcp' ? <span className="muted">—</span> : <ProgressoOPs e={e} p={p} />}</td>
+                    <td className="hide-md cel-larga" data-l="OPs">{st === 'pcp' ? <span className="muted">—</span> : <ProgressoOPs e={e} p={p} />}</td>
                     <td className="num nw" data-l="Estimativa">{st === 'pcp' ? <span className="muted">após o PCP</span> : <b>{estimativaTexto(e, p, est, agora)}</b>}</td>
                     <td data-l="Prazo">
                       <span className="prazo-cel">
@@ -189,11 +171,11 @@ export function FilaView() {
                         <PrazoChip p={p} />
                       </span>
                     </td>
-                    {rascunho && (
-                      <td data-l="Mudança">{d !== undefined ? <span className={`delta ${d > 0 ? 'pior' : 'melhor'}`}>{d > 0 ? '+' : '−'}{fmtDur(Math.abs(d))}</span> : <span className="muted">—</span>}</td>
-                    )}
+                    <td data-l="Mudança" className={rascunho ? undefined : 'cel-oculta'}>
+                      {d !== undefined ? <span className={`delta ${d > 0 ? 'pior' : 'melhor'}`}>{d > 0 ? '+' : '−'}{fmtDur(Math.abs(d))}</span> : <span className="muted">—</span>}
+                    </td>
                     {podeMexer && (
-                      <td className="r w-min" data-l="Mover">
+                      <td className="r" data-l="Mover">
                         <span className="mv">
                           <button aria-label="Mover para o topo" title="Para o topo" disabled={i === 0} onClick={() => mover(id, 0)}><Icon n="top" s={13} /></button>
                           <button aria-label="Subir" disabled={i === 0} onClick={() => mover(id, i - 1)}><Icon n="up" s={13} /></button>
@@ -232,6 +214,24 @@ export function FilaView() {
         </div>
         {temOps && <Gantt e={e} agenda={agendaSim} destaque={destaque} />}
       </section>
+      {rascunho && (
+        <div className="barra-acao" role="status"><div className="sim-band">
+          <Icon n="info" s={18} />
+          <span>
+            <b>Simulação:</b> {piores} pedido{piores === 1 ? '' : 's'} atrasa{piores === 1 ? '' : 'm'}, {melhores} adianta{melhores === 1 ? '' : 'm'}
+            {novosAtrasos.length > 0 && (
+              <>
+                {' '}· <b style={{ color: 'var(--crit)' }}>{novosAtrasos.map((p) => `#${p.numero}`).join(', ')} passa{novosAtrasos.length > 1 ? 'm' : ''} a estourar o prazo</b>
+              </>
+            )}
+          </span>
+          <div className="acts">
+            <button className="btn sm" onClick={() => setRascunho(null)}>Descartar</button>
+            <button className="btn sm pri" onClick={aplicar}>Aplicar prioridade</button>
+          </div>
+        </div></div>
+      )}
+
     </main>
   );
 }
