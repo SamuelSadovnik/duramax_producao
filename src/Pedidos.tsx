@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from './store';
 import { Icon, Modal, PrazoChip, ProgressoOPs, STATUS_PED, estimativaTexto, nomeOP } from './ui';
-import { opsDoPedido, statusPedido, volumePedido, situacaoPrazo } from '../shared/engine';
+import { opsDoPedido, prazoDoPedido, statusPedido, volumePedido, situacaoPrazo } from '../shared/engine';
 import { dataISOparaBR, fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
 import type { Estado, Pedido, StatusPedido } from '../shared/types';
 import { textosDoPdf } from './pdf';
 import { lerPedido, type PedidoLido } from '../shared/parse';
-import { somarExpediente, iso } from '../shared/calendar';
+import { somarDiasUteis } from '../shared/calendar';
 import { api } from './api';
 import { pode } from './store';
 
@@ -130,7 +130,7 @@ function CardPedido({ p, pos, onClick }: { p: Pedido; pos: number | null; onClic
 
 /* ------------------------------------------------------------ importação */
 
-type Lido = { arquivo: string; ped?: PedidoLido; erro?: string; prazo: string };
+type Lido = { arquivo: string; ped?: PedidoLido; erro?: string };
 
 function ImportarModal({ onClose }: { onClose: () => void }) {
   const { e, executar, toast, agora } = useApp();
@@ -145,16 +145,15 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
     const out: Lido[] = [];
     for (const f of Array.from(files)) {
       if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') {
-        out.push({ arquivo: f.name, erro: 'O arquivo não é PDF.', prazo: '' });
+        out.push({ arquivo: f.name, erro: 'O arquivo não é PDF.' });
         continue;
       }
       try {
         const ped = lerPedido(await textosDoPdf(f));
         if (!ped.numero || !ped.itens.length) throw new Error('Não encontrei o número ou os itens. Confira se é o PDF de Pedido de Venda do ERP.');
-        const prazoPadrao = ped.previsao && ped.previsao > ped.emissao ? ped.previsao : iso(somarExpediente(agora, 528 * 5, e.config.feriados));
-        out.push({ arquivo: f.name, ped, prazo: prazoPadrao });
+        out.push({ arquivo: f.name, ped });
       } catch (err: any) {
-        out.push({ arquivo: f.name, erro: err?.message ?? 'Não foi possível ler o PDF.', prazo: '' });
+        out.push({ arquivo: f.name, erro: err?.message ?? 'Não foi possível ler o PDF.' });
       }
     }
     setLidos((x) => [...x, ...out]);
@@ -162,13 +161,15 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
   }
 
   const existentes = new Set(e.pedidos.map((p) => p.numero));
+  // prazo conta a partir de hoje, dia em que o pedido entra no sistema
+  const prazoNovo = somarDiasUteis(agora, e.config.prazoDiasUteis, e.config.feriados);
   const validos = lidos.filter((l) => l.ped && !existentes.has(l.ped.numero));
 
   async function confirmar() {
     setEnviando(true);
     let novosProd = 0;
     const ok = await executar(async () => {
-      const r = await api.importar(validos.map((l) => ({ pedido: l.ped!, prazo: l.prazo })));
+      const r = await api.importar(validos.map((l) => ({ pedido: l.ped! })));
       novosProd = r.novosProdutos;
       return r;
     });
@@ -204,7 +205,7 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
       >
         <Icon n="file" s={30} w={1.6} />
         <b>{lendo ? 'Lendo PDF…' : 'Arraste os PDFs de Pedido de Venda aqui'}</b>
-        <span>O sistema lê cliente, prazo e todos os itens, mesmo em pedidos com várias páginas.</span>
+        <span>O sistema lê o cliente e todos os itens, mesmo em pedidos com várias páginas. O prazo é de {e.config.prazoDiasUteis} dias úteis a partir de hoje.</span>
         <button className="btn" onClick={() => inp.current?.click()} disabled={lendo}>
           Escolher arquivos
         </button>
@@ -238,24 +239,10 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
               <div><dt>Emissão</dt><dd>{dataISOparaBR(ped.emissao)} {ped.hora.slice(0, 5)}</dd></div>
               <div><dt>Itens / volume</dt><dd className="num">{ped.itens.length} · {fmtVol(vol)}</dd></div>
               <div>
-                <dt><label htmlFor={`prazo-${k}`}>Prazo de entrega</label></dt>
-                <dd>
-                  <input
-                    id={`prazo-${k}`}
-                    type="date"
-                    className="input"
-                    style={{ padding: '4px 8px' }}
-                    value={l.prazo}
-                    onChange={(ev) => setLidos((x) => x.map((y, j) => (j === k ? { ...y, prazo: ev.target.value } : y)))}
-                  />
-                </dd>
+                <dt>Prazo de entrega</dt>
+                <dd>{dataISOparaBR(prazoNovo)} <span className="muted" style={{ fontWeight: 500 }}>({e.config.prazoDiasUteis} dias úteis)</span></dd>
               </div>
             </dl>
-            {ped.previsao <= ped.emissao && (
-              <span className="muted" style={{ fontSize: 12 }}>
-                A data previsão do ERP é igual à emissão ({dataISOparaBR(ped.previsao)}); sugeri 5 dias úteis. Ajuste se o combinado com o cliente for outro.
-              </span>
-            )}
             {novos.length > 0 && (
               <span className="chip warn" style={{ whiteSpace: 'normal', borderRadius: 8, padding: '6px 10px' }}>
                 <Icon n="info" s={13} /> {novos.length} produto(s) novo(s) no cadastro. Entram com lote e tempo sugeridos; o PCP revisa em Parâmetros.
@@ -343,7 +330,7 @@ export function DetalhePedido() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 <PrazoChip p={p} />
-                <span className="muted" style={{ fontSize: 12 }}>Prazo: {dataISOparaBR(p.previsao)}</span>
+                <span className="muted" style={{ fontSize: 12 }}>Prazo: {dataISOparaBR(prazoDoPedido(e, p))} · {e.config.prazoDiasUteis} dias úteis desde a entrada</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -364,7 +351,8 @@ export function DetalhePedido() {
             <div><dt>Cidade</dt><dd>{titulo(p.cidade)}/{p.uf}</dd></div>
             <div><dt>Vendedor</dt><dd>{titulo(p.vendedor)}</dd></div>
             <div><dt>Transportadora</dt><dd>{titulo(p.transportadora)}</dd></div>
-            <div><dt>Emissão</dt><dd>{dataISOparaBR(p.emissao)}</dd></div>
+            <div><dt>Emissão no ERP</dt><dd>{dataISOparaBR(p.emissao)}</dd></div>
+            <div><dt>Entrou no sistema</dt><dd>{quando(new Date(p.importadoEm), agora)}</dd></div>
             <div><dt>Volume total</dt><dd className="num">{fmtVol(volumePedido(p))}</dd></div>
             <div><dt>Itens</dt><dd className="num">{p.itens.length}</dd></div>
           </dl>

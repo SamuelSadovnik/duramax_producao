@@ -5,6 +5,7 @@ import { fimDoDia, diaUtil } from '../shared/calendar';
 import { dataCurta, diaSemana, fmtDur, fmtVol, hora, nf, quando, titulo } from '../shared/fmt';
 import { LINHAS, nomeLinha } from '../shared/catalog';
 import type { OP } from '../shared/types';
+import { prazoDoPedido } from '../shared/engine';
 import { api } from './api';
 import { inicioDoDia, iso, somarDias } from '../shared/tz';
 import { pode } from './store';
@@ -44,8 +45,8 @@ export function DashboardView() {
     const late = ops.filter(atrasou);
     const horasPerdidas = late.reduce((s, o) => s + perda(o), 0);
     const vol = ops.reduce((s, o) => s + o.lote, 0);
-    const prontos = e.pedidos.filter((p) => p.prontoEm && new Date(p.prontoEm) >= desde && p.previsao);
-    const pedNoPrazo = prontos.filter((p) => new Date(p.prontoEm!) <= fimDoDia(p.previsao)).length;
+    const prontos = e.pedidos.filter((p) => p.prontoEm && new Date(p.prontoEm) >= desde);
+    const pedNoPrazo = prontos.filter((p) => new Date(p.prontoEm!) <= fimDoDia(prazoDoPedido(e, p))).length;
 
     const agrupar = (chave: (o: OP) => string | undefined) => {
       const m = new Map<string, { n: number; min: number }>();
@@ -189,7 +190,7 @@ export function DashboardView() {
             <i className="okb" style={{ width: `${pctPrazo}%` }} />
             <i className="crb" style={{ width: `${d.prontos.length ? 100 - pctPrazo : 0}%` }} />
           </div>
-          <span className="s">{pctPrazo}% liberados até a data prometida</span>
+          <span className="s">{pctPrazo}% liberados em até {e.config.prazoDiasUteis} dias úteis</span>
         </div>
         <div className="kpi">
           <span className="l">Volume produzido</span>

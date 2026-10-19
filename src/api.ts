@@ -47,7 +47,7 @@ export const api = {
     req<ComEstado>('POST', `/ops/${opId}/${acao}`, dados),
 
   produto: (id: string, patch: { lote?: number; tempoMin?: number }) => req<ComEstado>('PATCH', `/produtos/${encodeURIComponent(id)}`, patch),
-  config: (patch: { capacidade?: number; toleranciaPct?: number; feriados?: string[] }) => req<ComEstado>('PATCH', '/config', patch),
+  config: (patch: { capacidade?: number; toleranciaPct?: number; prazoDiasUteis?: number; feriados?: string[] }) => req<ComEstado>('PATCH', '/config', patch),
 
   usuarios: () => req<{ usuarios: Usuario[] }>('GET', '/usuarios'),
   criarUsuario: (d: { nome: string; usuario: string; perfil: Perfil; senha: string }) => req<{ usuario: Usuario }>('POST', '/usuarios', d),

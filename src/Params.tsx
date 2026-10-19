@@ -78,6 +78,18 @@ export function ParamsView() {
             </div>
           </section>
           <section className="panel">
+            <div className="panel-head"><h2>Prazo de entrega</h2></div>
+            <p className="fg2" style={{ margin: '0 0 12px', fontSize: 13 }}>
+              Dias úteis contados a partir do dia em que o pedido entra no sistema (o próprio dia não conta). Vale para todos os pedidos, inclusive os que já estão abertos.
+            </p>
+            <div className="stepper">
+              <button aria-label="Diminuir prazo" disabled={!podeEditar || e.config.prazoDiasUteis <= 1} onClick={() => config({ prazoDiasUteis: e.config.prazoDiasUteis - 1 })}>−</button>
+              <span>{e.config.prazoDiasUteis}</span>
+              <button aria-label="Aumentar prazo" disabled={!podeEditar || e.config.prazoDiasUteis >= 60} onClick={() => config({ prazoDiasUteis: e.config.prazoDiasUteis + 1 })}>+</button>
+            </div>
+            <span className="muted" style={{ marginLeft: 10, fontSize: 13 }}>dias úteis</span>
+          </section>
+          <section className="panel">
             <div className="panel-head"><h2>Tolerância de atraso</h2></div>
             <p className="fg2" style={{ margin: '0 0 10px', fontSize: 13 }}>Acima disso o gerente informa o motivo ao finalizar.</p>
             <div className="seg" role="group" aria-label="Tolerância">
