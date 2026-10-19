@@ -176,7 +176,7 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
     setEnviando(false);
     if (!ok) return;
     toast({
-      texto: `${validos.length} pedido(s) importado(s) e enviados para o PCP${novosProd ? ` · ${novosProd} produto(s) novo(s) com parâmetros a revisar` : ''}`,
+      texto: `${validos.length} pedido(s) importado(s) e enviados para o PCP${novosProd ? ` · ${novosProd} produto(s) novo(s) sem lote e tempo` : ''}`,
       tipo: 'ok',
     });
     onClose();
@@ -245,7 +245,7 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
             </dl>
             {novos.length > 0 && (
               <span className="chip warn" style={{ whiteSpace: 'normal', borderRadius: 8, padding: '6px 10px' }}>
-                <Icon n="info" s={13} /> {novos.length} produto(s) novo(s) no cadastro. Entram com lote e tempo sugeridos; o PCP revisa em Parâmetros.
+                <Icon n="info" s={13} /> {novos.length} produto(s) novo(s) no cadastro. Entram sem lote e tempo; o PCP informa na análise antes de liberar.
               </span>
             )}
             <div className="scroll-x" style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 8 }}>

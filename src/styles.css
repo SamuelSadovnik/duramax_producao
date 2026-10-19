@@ -915,3 +915,9 @@ button.fl-stat { cursor: default; }
 .usr-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 650; color: var(--fg-2); }
 @media (max-width: 900px) { .usr-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 @media (max-width: 520px) { .usr-form { grid-template-columns: minmax(0, 1fr); } }
+
+/* parâmetros de produto */
+.param-campos { display: inline-flex; gap: 8px; justify-content: flex-end; }
+tr.sem-param td { background: var(--warn-bg); }
+.param-pcp { margin-top: 4px; gap: 6px; }
+.param-pcp .cell-in { width: 78px; }

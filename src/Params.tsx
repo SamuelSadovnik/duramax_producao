@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { CamposParam } from './ParamProduto';
+import { temParametros } from '../shared/engine';
 import { useApp } from './store';
 import { Icon } from './ui';
 import { LINHAS, nomeLinha } from '../shared/catalog';
-import { dataISOparaBR, diaSemana, fmtDur, hmParaMin, minParaHM, nf } from '../shared/fmt';
+import { dataISOparaBR, diaSemana, fmtDur, nf } from '../shared/fmt';
 import type { Produto } from '../shared/types';
 import { api } from './api';
 import { deISOlocal } from '../shared/tz';
@@ -20,12 +22,12 @@ export function ParamsView() {
     () =>
       Object.values(e.produtos)
         .filter((p) => (!linha || p.linha === linha) && (!q || `${p.id} ${p.nome}`.toLowerCase().includes(q.toLowerCase())))
-        .sort((a, b) => Number(!!b.pendente) - Number(!!a.pendente) || a.id.localeCompare(b.id, 'pt-BR', { numeric: true })),
+        .sort((a, b) => Number(!temParametros(b)) - Number(!temParametros(a)) || a.id.localeCompare(b.id, 'pt-BR', { numeric: true })),
     [e.produtos, linha, q],
   );
-  const pendentes = Object.values(e.produtos).filter((p) => p.pendente).length;
+  const pendentes = Object.values(e.produtos).filter((p) => !temParametros(p)).length;
 
-  const atualizar = (p: Produto, patch: { lote?: number; tempoMin?: number }) =>
+  const atualizar = (p: Produto, patch: { lote: number; tempoMin: number }) =>
     executar(() => api.produto(p.id, patch), `${p.nome}: parâmetros salvos. Estimativas recalculadas.`);
 
   return (
@@ -33,7 +35,7 @@ export function ParamsView() {
       <div className="page-head">
         <div>
           <h1>Parâmetros</h1>
-          <p>Tamanho do lote e tempo padrão de cada produto. A estimativa e o desempenho usam estes valores. Produtos novos entram com valores sugeridos pela linha e ficam marcados como “novo” até o PCP revisar.</p>
+          <p>Tamanho do lote e tempo padrão de cada produto, informados pelo PCP. Produto novo entra sem valores e aparece no topo como “sem parâmetro”; pedidos que precisam produzi-lo só são liberados depois de preenchido.</p>
         </div>
       </div>
       <div className="params-grid">
@@ -48,7 +50,7 @@ export function ParamsView() {
               <option value="">Todas as linhas</option>
               {Object.keys(LINHAS).map((l) => <option key={l} value={l}>{nomeLinha(l)}</option>)}
             </select>
-            {pendentes > 0 && <span className="chip warn">{pendentes} produto(s) novo(s) para revisar</span>}
+            {pendentes > 0 && <span className="chip warn">{pendentes} produto(s) sem lote ou tempo</span>}
             <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{prods.length} produtos</span>
           </div>
           <div className="scroll-x" style={{ maxHeight: 640, overflowY: 'auto' }}>
@@ -132,34 +134,17 @@ export function ParamsView() {
   );
 }
 
-function LinhaProduto({ p, pode, onSalvar }: { p: Produto; pode: boolean; onSalvar: (x: { lote?: number; tempoMin?: number }) => void }) {
-  const [lote, setLote] = useState(String(p.lote));
-  const [tempo, setTempo] = useState(minParaHM(p.tempoMin));
-  // se outra pessoa alterar, a linha mostra o valor novo
-  useEffect(() => {
-    setLote(String(p.lote));
-    setTempo(minParaHM(p.tempoMin));
-  }, [p.lote, p.tempoMin]);
-  const loteN = parseFloat(lote.replace(',', '.'));
-  const tempoN = hmParaMin(tempo);
-  const okLote = loteN > 0;
-  const okTempo = tempoN !== null && tempoN > 0;
-  const salvar = () => {
-    if (!okLote || !okTempo) return;
-    if (loteN !== p.lote || tempoN !== p.tempoMin) onSalvar({ lote: loteN, tempoMin: tempoN! });
-  };
+function LinhaProduto({ p, pode, onSalvar }: { p: Produto; pode: boolean; onSalvar: (x: { lote: number; tempoMin: number }) => void }) {
+  const falta = !temParametros(p);
   return (
-    <tr>
+    <tr className={falta ? 'sem-param' : undefined}>
       <td className="mono">{p.id}</td>
-      <td>{p.nome} {p.pendente && <span className="chip warn">novo</span>}</td>
+      <td>{p.nome} {falta && <span className="chip warn">sem parâmetro</span>}</td>
       <td className="fg2" style={{ whiteSpace: 'nowrap' }}>{nomeLinha(p.linha)}</td>
-      <td className="r">
-        <input id={`lote-${p.id}`} aria-label={`Lote de ${p.nome}`} className={`cell-in${okLote ? '' : ' bad'}`} value={lote} disabled={!pode} inputMode="decimal" onChange={(ev) => setLote(ev.target.value)} onBlur={salvar} onKeyDown={(ev) => ev.key === 'Enter' && salvar()} />
+      <td className="r" colSpan={2}>
+        <span className="param-campos"><CamposParam p={p} pode={pode} onSalvar={onSalvar} /></span>
       </td>
-      <td className="r">
-        <input id={`tempo-${p.id}`} aria-label={`Tempo de ${p.nome}`} className={`cell-in${okTempo ? '' : ' bad'}`} value={tempo} disabled={!pode} onChange={(ev) => setTempo(ev.target.value)} onBlur={salvar} onKeyDown={(ev) => ev.key === 'Enter' && salvar()} />
-      </td>
-      <td className="r num muted">{okLote && okTempo ? nf(loteN / (tempoN! / 60)) : '—'}</td>
+      <td className="r num muted">{temParametros(p) ? nf(p.lote / (p.tempoMin / 60)) : '—'}</td>
     </tr>
   );
 }

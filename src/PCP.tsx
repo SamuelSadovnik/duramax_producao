@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from './store';
 import { Icon, PrazoChip } from './ui';
-import { calcularAgenda, liberarPedido, planejar, situacaoPrazo, statusPedido, volumePedido } from '../shared/engine';
+import { calcularAgenda, liberarPedido, planejar, produtosSemParametro, situacaoPrazo, statusPedido, temParametros, volumePedido } from '../shared/engine';
+import { CamposParam } from './ParamProduto';
 import { fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
 import type { Decisao, Pedido } from '../shared/types';
 import { nomeLinha } from '../shared/catalog';
@@ -79,7 +80,7 @@ export function PCPView() {
 }
 
 function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: () => Promise<void>; somenteVer: boolean; abrir: () => void }) {
-  const { e, executar, agora } = useApp();
+  const { e, executar, agora, perfil } = useApp();
   const [ocupado, setOcupado] = useState(false);
   const [aberto, setAberto] = useState<Record<string, boolean>>({});
 
@@ -107,16 +108,17 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
   const sobra = plano.reduce((s, l) => s + l.sobra, 0);
   const volOP = plano.reduce((s, l) => s + l.necessidade, 0);
   const volEst = p.itens.filter((i) => i.decisao === 'estoque').reduce((s, i) => s + i.volume, 0);
+  const semParam = produtosSemParametro(e, p);
 
   // simulação: como ficaria se liberasse agora
   const simul = useMemo(() => {
-    if (pendentes) return null;
+    if (pendentes || semParam.length) return null;
     const e2 = liberarPedido(e, p.id, agora);
     const ag = calcularAgenda(e2, agora);
     const fim = ag.pedidos.get(p.id);
     const pp = e2.pedidos.find((x) => x.id === p.id)!;
     return { fim, prazo: situacaoPrazo(e2, pp, fim, agora) };
-  }, [e, p, agora, pendentes]);
+  }, [e, p, agora, pendentes, semParam.length]);
 
   const todos = p.itens.map((i) => i.id);
   const linhas = [...new Set(grupos.map(([pid]) => pid.split('.')[0]))];
@@ -160,7 +162,7 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
                           {prod?.nome ?? pid}
                           <small>
                             <span className="mono">{pid}</span> · {its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}
-                            {prod?.pendente && <span className="chip warn" style={{ marginLeft: 6 }}>produto novo</span>}
+                            {!temParametros(prod) && <span className="chip warn" style={{ marginLeft: 6 }}>sem parâmetro</span>}
                           </small>
                         </div>
                         <b className="num" style={{ minWidth: 70, textAlign: 'right' }}>{fmtVol(vol)}</b>
@@ -215,6 +217,10 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
               <span className="fg2" style={{ fontSize: 13 }}>
                 Faltam <b>{pendentes}</b> {pendentes === 1 ? 'item' : 'itens'} para decidir. A estimativa aparece quando todos estiverem definidos.
               </span>
+            ) : semParam.length ? (
+              <span className="fg2" style={{ fontSize: 13 }}>
+                Falta informar <b>lote e tempo</b> de {semParam.length} produto{semParam.length > 1 ? 's' : ''} (lista abaixo). Sem isso não dá para montar as OPs nem estimar a entrega.
+              </span>
             ) : simul ? (
               <>
                 <div className="eyebrow">Se liberar agora, fica pronto</div>
@@ -227,7 +233,7 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
             ) : null}
           </div>
           {!somenteVer && (
-            <button className="btn pri" style={{ width: '100%', marginTop: 12, minHeight: 42 }} disabled={pendentes > 0 || ocupado} onClick={liberar}>
+            <button className="btn pri" style={{ width: '100%', marginTop: 12, minHeight: 42 }} disabled={pendentes > 0 || semParam.length > 0 || ocupado} onClick={liberar}>
               <Icon n="check" s={16} w={2.4} /> Liberar para produção
             </button>
           )}
@@ -237,15 +243,25 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
         {plano.length > 0 && (
           <div className="panel">
             <div className="panel-head"><h2>Lotes</h2><span className="sp muted" style={{ fontSize: 12 }}>{plano.length} produto(s)</span></div>
-            {plano.map((l) => {
+            {[...plano].sort((a, b) => Number(b.semParametro) - Number(a.semParametro)).map((l) => {
               const prod = e.produtos[l.produtoId];
               return (
                 <div className="plan-row" key={l.produtoId}>
                   <span className="nm">{prod?.nome ?? l.produtoId}</span>
                   <div className="ln">
                     <span className="num">{fmtVol(l.necessidade)}</span>
-                    <span className="muted">· lote {fmtVol(prod?.lote ?? 0)} · {fmtDur(prod?.tempoMin ?? 0)}/lote</span>
+                    {temParametros(prod) && <span className="muted">· lote {fmtVol(prod.lote)} · {fmtDur(prod.tempoMin)}/lote</span>}
                   </div>
+                  {l.semParametro && prod && (
+                    <div className="ln param-pcp">
+                      <span className="chip warn">sem parâmetro</span>
+                      {pode.parametros(perfil) ? (
+                        <CamposParam p={prod} pode comBotao onSalvar={(x) => executar(() => api.produto(prod.id, x), `${prod.nome}: lote e tempo salvos.`)} />
+                      ) : (
+                        <span className="muted" style={{ fontSize: 12 }}>o PCP precisa informar lote e tempo</span>
+                      )}
+                    </div>
+                  )}
                   <div className="ln">
                     {l.aproveita.map((a) => (
                       <span key={a.opId} className="chip ok" title="OP ainda não iniciada com volume livre">
