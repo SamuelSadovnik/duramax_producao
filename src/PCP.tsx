@@ -139,9 +139,9 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
   const todos = p.itens.map((i) => i.id);
   const linhas = [...new Set(grupos.map(([pid]) => pid.split('.')[0]))];
   const bloqueio = pendentes
-    ? `Faltam ${pendentes} ${pendentes === 1 ? 'item' : 'itens'} para decidir.`
+    ? `falta${pendentes === 1 ? '' : 'm'} decidir ${pendentes} ${pendentes === 1 ? 'item' : 'itens'}`
     : semParam.length
-      ? `Falta informar lote e tempo de ${semParam.length} produto${semParam.length > 1 ? 's' : ''} (marcados abaixo).`
+      ? `falta lote e tempo de ${semParam.length} produto${semParam.length > 1 ? 's' : ''}`
       : '';
 
   return (
@@ -182,16 +182,17 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
         <div className="rs"><span className="rs-l">Produção</span><b className="num">{tempo ? fmtDur(tempo) : '—'}</b><span className="rs-s">tempo padrão somado</span></div>
         <div className="rs rs-fim">
           <span className="rs-l">Se liberar agora</span>
-          {simul ? (
-            <>
-              <b className="num">{simul.fim ? quando(simul.fim, agora) : 'na hora'}</b>
-              {simul.prazo.tipo !== 'sem' && (
-                <span className={`chip ${simul.prazo.tipo === 'ok' ? 'ok' : simul.prazo.tipo === 'risco' ? 'warn' : 'crit'}`}>{simul.prazo.texto}</span>
-              )}
-            </>
-          ) : (
-            <b className="muted">—</b>
-          )}
+          <b className="num">{simul ? (simul.fim ? quando(simul.fim, agora) : 'na hora') : '—'}</b>
+          {/* a mesma linha mostra o prazo ou o que falta, para nada mudar de lugar */}
+          <span className="rs-st">
+            {bloqueio ? (
+              <span className="chip warn"><Icon n="info" s={12} /> {bloqueio}</span>
+            ) : simul && simul.prazo.tipo !== 'sem' ? (
+              <span className={`chip ${simul.prazo.tipo === 'ok' ? 'ok' : simul.prazo.tipo === 'risco' ? 'warn' : 'crit'}`}>{simul.prazo.texto}</span>
+            ) : (
+              <span className="chip ok"><Icon n="check" s={12} w={2.6} /> pronto para liberar</span>
+            )}
+          </span>
         </div>
         {!somenteVer && (
           <button className="btn pri lg pcp2-liberar" disabled={!!bloqueio || ocupado} onClick={liberar}>
@@ -199,11 +200,6 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
           </button>
         )}
       </div>
-      {bloqueio && (
-        <div className="aviso" role="status">
-          <Icon n="info" s={15} /> <span>{bloqueio}</span>
-        </div>
-      )}
 
       <div className="panel flush">
         <div className="scroll-x">
@@ -211,9 +207,9 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
             <thead>
               <tr>
                 <th>Produto</th>
-                <th className="r">Volume</th>
-                <th className="w-min">Decisão</th>
-                <th>Plano de produção</th>
+                <th className="r" style={{ width: 110 }}>Volume</th>
+                <th style={{ width: 268 }}>Decisão</th>
+                <th style={{ width: '36%' }}>Plano de produção</th>
               </tr>
             </thead>
             {linhas.map((ln) => (
