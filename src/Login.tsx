@@ -20,6 +20,10 @@ export function Login({ onEntrar }: { onEntrar: (u: Usuario) => void }) {
   async function entrar(ev: React.FormEvent) {
     ev.preventDefault();
     setErro('');
+    if (!usuario.trim() || !senha) {
+      setErro('Informe o usuário e a senha.');
+      return;
+    }
     setEnviando(true);
     try {
       const r = await api.entrar(usuario, senha);
@@ -83,7 +87,7 @@ export function Login({ onEntrar }: { onEntrar: (u: Usuario) => void }) {
 
           {erro && <div className="lg-erro" role="alert">{erro}</div>}
 
-          <button className="lg-entrar" type="submit" disabled={enviando || !usuario || !senha}>
+          <button className="lg-entrar" type="submit" disabled={enviando}>
             {enviando ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
