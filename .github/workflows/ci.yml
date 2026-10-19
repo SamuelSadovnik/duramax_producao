@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: duramax
+          POSTGRES_PASSWORD: duramax
+          POSTGRES_DB: duramax_producao
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U duramax" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://duramax:duramax@localhost:5432/duramax_producao
+      AUTH_SECRET: ci-segredo-somente-para-testes-0123456789abcdef
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run
+      - name: Migrações aplicam num banco vazio
+        run: npx tsx scripts/migrar.ts
+      - run: npx vite build
