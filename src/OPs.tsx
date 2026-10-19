@@ -63,11 +63,19 @@ export function OPsView() {
       </div>
       <section className="panel flush">
         <div className="scroll-x">
-          <table className="t cartoes-tab">
+          <table className="t cartoes-tab" style={{ minWidth: 1080 }}>
             <thead>
               <tr>
-                <th className="w-min">OP</th><th>Produto</th><th className="r">Lote</th><th className="r hide-tab">Alocado</th><th>Pedidos</th><th>Situação</th>
-                <th className="hide-tab">{f === 'concluida' ? 'Início' : 'Início (prev.)'}</th><th>{f === 'concluida' ? 'Fim' : 'Fim (prev.)'}</th><th className="r">Padrão</th><th className="r">Real</th>
+                <th style={{ width: 64 }}>OP</th>
+                <th>Produto</th>
+                <th className="r" style={{ width: 90 }}>Lote</th>
+                <th className="r hide-tab" style={{ width: 90 }}>Alocado</th>
+                <th style={{ width: 200 }}>Pedidos</th>
+                <th style={{ width: 150 }}>Situação</th>
+                <th className="hide-tab" style={{ width: 140 }}>{f === 'concluida' ? 'Início' : 'Início (prev.)'}</th>
+                <th style={{ width: 140 }}>{f === 'concluida' ? 'Fim' : 'Fim (prev.)'}</th>
+                <th className="r" style={{ width: 84 }}>Padrão</th>
+                <th className="r" style={{ width: 84 }}>Real</th>
               </tr>
             </thead>
             <tbody>
@@ -78,8 +86,8 @@ export function OPsView() {
                 const al = alocado(o);
                 return (
                   <tr key={o.id}>
-                    <td className="mono w-min cel-oculta">{o.numero}</td>
-                    <td className="cel-tit" style={{ minWidth: 220 }}>
+                    <td className="mono cel-oculta">{o.numero}</td>
+                    <td className="cel-tit">
                       <span className="nome">{nomeOP(e, o)}</span>
                       <span className="sub mono">{o.produtoId}<span className="so-cel"> · OP {o.numero}</span></span>
                     </td>

@@ -262,7 +262,7 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
             <div className="scroll-x imp-itens">
               <table className="t">
                 <thead>
-                  <tr><th>Código</th><th>Descrição</th><th>Cód. fab.</th><th className="r">Qtde</th><th className="r">Volume</th></tr>
+                  <tr><th style={{ width: 90 }}>Código</th><th>Descrição</th><th style={{ width: 130 }}>Cód. fab.</th><th className="r" style={{ width: 130 }}>Qtde</th><th className="r" style={{ width: 100 }}>Volume</th></tr>
                 </thead>
                 <tbody>
                   {ped.itens.map((i, j) => (
@@ -372,7 +372,7 @@ export function DetalhePedido() {
               <div className="panel-head"><h2>Ordens de produção</h2><span className="sp nota">{ops.filter((o) => o.status === 'concluida').length} de {ops.length} concluídas</span></div>
               <div className="scroll-x">
                 <table className="t cartoes">
-                  <thead><tr><th>Produto / OP</th><th className="r">Deste pedido</th><th>Situação</th><th>Previsão / fim</th></tr></thead>
+                  <thead><tr><th>Produto / OP</th><th className="r" style={{ width: 150 }}>Deste pedido</th><th style={{ width: 180 }}>Situação</th><th style={{ width: 130 }}>Previsão / fim</th></tr></thead>
                   <tbody>
                     {ops.map((o) => {
                       const pv = agenda.ops.get(o.id);
@@ -400,7 +400,7 @@ export function DetalhePedido() {
             <div className="panel-head"><h2>Itens por produto</h2></div>
             <div className="scroll-x">
               <table className="t cartoes">
-                <thead><tr><th>Produto</th><th>Embalagens</th><th className="r">Volume</th><th>Decisão PCP</th></tr></thead>
+                <thead><tr><th>Produto</th><th style={{ width: 190 }}>Embalagens</th><th className="r" style={{ width: 100 }}>Volume</th><th style={{ width: 140 }}>Decisão PCP</th></tr></thead>
                 <tbody>
                   {[...grupos].map(([pid, its]) => (
                     <tr key={pid}>

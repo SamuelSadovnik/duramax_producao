@@ -54,11 +54,15 @@ export function ParamsView() {
             <span className="sp nota num">{prods.length} produto{prods.length === 1 ? '' : 's'}</span>
           </div>
           <div className="params-tab">
-            <table className="t cartoes">
+            <table className="t cartoes" style={{ minWidth: 720 }}>
               <thead>
                 <tr>
-                  <th className="w-min">Código base</th><th>Produto</th><th className="hide-tab">Linha</th>
-                  <th className="r w-min">Lote (L)</th><th className="r w-min">Tempo por lote</th><th className="r w-min">L/hora</th>
+                  <th style={{ width: 120 }}>Código base</th>
+                  <th>Produto</th>
+                  <th className="hide-tab" style={{ width: 190 }}>Linha</th>
+                  <th className="r" style={{ width: 124 }}>Lote (L)</th>
+                  <th className="r" style={{ width: 136 }}>Tempo por lote</th>
+                  <th className="r" style={{ width: 84 }}>L/hora</th>
                 </tr>
               </thead>
               <tbody>

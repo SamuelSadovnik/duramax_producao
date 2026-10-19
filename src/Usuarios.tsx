@@ -81,8 +81,17 @@ export function UsuariosView() {
 
       <section className="panel flush">
         <div className="scroll-x">
-          <table className="t cartoes-tab">
-            <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Último acesso</th><th>Situação</th><th className="r">Ações</th></tr></thead>
+          <table className="t cartoes-tab" style={{ minWidth: 900 }}>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th style={{ width: 150 }}>Usuário</th>
+                <th style={{ width: 230 }}>Perfil</th>
+                <th style={{ width: 150 }}>Último acesso</th>
+                <th style={{ width: 120 }}>Situação</th>
+                <th className="r" style={{ width: 250 }}>Ações</th>
+              </tr>
+            </thead>
             <tbody>
               {lista?.map((u) => (
                 <tr key={u.id} style={{ opacity: u.ativo ? 1 : 0.55 }}>

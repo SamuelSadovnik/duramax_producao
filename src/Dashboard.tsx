@@ -282,10 +282,16 @@ export function DashboardView() {
           <span className="sp nota">média real de cada produto no período</span>
         </div>
         <div className="scroll-x">
-          <table className="t cartoes">
+          <table className="t cartoes" style={{ minWidth: 860 }}>
             <thead>
               <tr>
-                <th>Produto</th><th className="r">OPs</th><th className="r">Padrão</th><th className="r">Média real</th><th className="hide-tab" style={{ minWidth: 180 }}>Menor e maior tempo</th><th className="r">No tempo</th><th>Sugestão</th>
+                <th>Produto</th>
+                <th className="r" style={{ width: 70 }}>OPs</th>
+                <th className="r" style={{ width: 90 }}>Padrão</th>
+                <th className="r" style={{ width: 100 }}>Média real</th>
+                <th className="hide-tab" style={{ width: 200 }}>Menor e maior tempo</th>
+                <th className="r" style={{ width: 90 }}>No tempo</th>
+                <th style={{ width: 250 }}>Sugestão</th>
               </tr>
             </thead>
             <tbody>
@@ -294,7 +300,7 @@ export function DashboardView() {
                 const sugere = p.n >= 3 && Math.abs(p.desvio) > 0.15;
                 return (
                   <tr key={p.pid} className="click" onClick={() => filtrar({ tipo: 'produto', valor: p.pid, rotulo: p.nome })}>
-                    <td className="cel-tit" style={{ minWidth: 220 }}><span className="nome">{p.nome}</span></td>
+                    <td className="cel-tit"><span className="nome">{p.nome}</span></td>
                     <td className="r num" data-l="OPs">{p.n}</td>
                     <td className="r num" data-l="Padrão">{fmtDur(p.padrao)}</td>
                     <td className="r num" data-l="Média real" style={{ color: p.media > p.padrao * tol ? 'var(--crit)' : undefined, fontWeight: 650 }}>{fmtDur(p.media)}</td>
