@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from './store';
-import { Icon, Modal, nomeOP, useTip } from './ui';
+import { Icon, Modal, Vazio, nomeOP, useTip } from './ui';
 import { fimDoDia, diaUtil } from '../shared/calendar';
 import { dataCurta, diaSemana, fmtDur, fmtVol, hora, mesmoDia, nf, quando, titulo } from '../shared/fmt';
 import { LINHAS, nomeLinha } from '../shared/catalog';
@@ -171,7 +171,7 @@ export function DashboardView() {
         )}
       </section>
 
-      <div className="kpis kpis4">
+      <div className="kpis">
         <div className="kpi">
           <span className="l">OPs dentro do tempo</span>
           <span className="v">{d.ops.length ? d.ops.length - d.late.length : '—'}{d.ops.length > 0 && <small>de {d.ops.length}</small>}</span>
@@ -197,10 +197,10 @@ export function DashboardView() {
       </div>
 
       {!d.ops.length ? (
-        <div className="panel vazio-grande">
-          <Icon n="grafico" s={36} w={1.6} />
-          <b>Ainda não há OPs concluídas {periodo === 'hoje' ? 'hoje' : 'neste período'}</b>
-          <span>Os gráficos aparecem quando o gerente finalizar as primeiras OPs no chão de fábrica.</span>
+        <div className="panel">
+          <Vazio icone="grafico" titulo={`Ainda não há OPs concluídas ${periodo === 'hoje' ? 'hoje' : 'neste período'}`}>
+            Os gráficos aparecem quando o gerente finalizar as primeiras OPs no chão de fábrica.
+          </Vazio>
         </div>
       ) : (
         <>
@@ -215,7 +215,7 @@ export function DashboardView() {
           />
         </section>
         <section className="panel">
-          <div className="panel-head"><h2>Por produto</h2><span className="sp muted" style={{ fontSize: 12 }}>os 7 que mais perderam tempo</span></div>
+          <div className="panel-head"><h2>Por produto</h2><span className="sp nota">os 7 que mais perderam tempo</span></div>
           <RankBarras
             itens={d.porProdutoPerda.map((x) => ({ k: x.k, rotulo: e.produtos[x.k]?.nome ?? x.k, n: x.n, min: x.min }))}
             max={maxPerda}
@@ -229,7 +229,7 @@ export function DashboardView() {
         <div className="panel-head">
           <h2>Previsto × realizado, OP por OP</h2>
           {filtro && (
-            <button className="chip info" style={{ border: 0, cursor: 'pointer' }} onClick={() => setFiltro(null)}>
+            <button className="chip info" onClick={() => setFiltro(null)}>
               {filtro.tipo === 'motivo' ? 'Motivo' : 'Produto'}: {filtro.rotulo} <Icon n="x" s={12} />
             </button>
           )}
@@ -267,7 +267,7 @@ export function DashboardView() {
               </button>
             );
           })}
-          {!listaOps.length && <div className="empty"><b>Nenhuma OP aqui</b>Mude o período ou o filtro.</div>}
+          {!listaOps.length && <Vazio compacto icone="ops" titulo="Nenhuma OP aqui">Mude o período ou o filtro.</Vazio>}
         </div>
         {listaOps.length > limite && (
           <button className="btn" style={{ marginTop: 10 }} onClick={() => setLimite((x) => x + 30)}>
@@ -276,16 +276,16 @@ export function DashboardView() {
         )}
       </section>
 
-      <section className="panel" style={{ padding: 0 }}>
-        <div className="panel-head" style={{ padding: '16px 16px 0' }}>
+      <section className="panel flush">
+        <div className="panel-head">
           <h2>Tempo padrão está certo?</h2>
-          <span className="sp muted" style={{ fontSize: 12 }}>média real de cada produto no período</span>
+          <span className="sp nota">média real de cada produto no período</span>
         </div>
         <div className="scroll-x">
-          <table className="t">
+          <table className="t cartoes">
             <thead>
               <tr>
-                <th>Produto</th><th className="r">OPs</th><th className="r">Padrão</th><th className="r">Média real</th><th style={{ minWidth: 180 }}>Menor e maior tempo</th><th className="r">No tempo</th><th>Sugestão</th>
+                <th>Produto</th><th className="r">OPs</th><th className="r">Padrão</th><th className="r">Média real</th><th className="hide-tab" style={{ minWidth: 180 }}>Menor e maior tempo</th><th className="r">No tempo</th><th>Sugestão</th>
               </tr>
             </thead>
             <tbody>
@@ -294,11 +294,11 @@ export function DashboardView() {
                 const sugere = p.n >= 3 && Math.abs(p.desvio) > 0.15;
                 return (
                   <tr key={p.pid} className="click" onClick={() => filtrar({ tipo: 'produto', valor: p.pid, rotulo: p.nome })}>
-                    <td style={{ minWidth: 220 }}><b style={{ fontWeight: 600 }}>{p.nome}</b></td>
-                    <td className="r num">{p.n}</td>
-                    <td className="r num">{fmtDur(p.padrao)}</td>
-                    <td className="r num" style={{ color: p.media > p.padrao * tol ? 'var(--crit)' : undefined, fontWeight: 650 }}>{fmtDur(p.media)}</td>
-                    <td>
+                    <td className="cel-tit" style={{ minWidth: 220 }}><span className="nome">{p.nome}</span></td>
+                    <td className="r num" data-l="OPs">{p.n}</td>
+                    <td className="r num" data-l="Padrão">{fmtDur(p.padrao)}</td>
+                    <td className="r num" data-l="Média real" style={{ color: p.media > p.padrao * tol ? 'var(--crit)' : undefined, fontWeight: 650 }}>{fmtDur(p.media)}</td>
+                    <td className="hide-tab">
                       <span className="range" title={`${fmtDur(p.min)} a ${fmtDur(p.max)}`}>
                         <i className="rg" style={{ left: `${(p.min / escalaP) * 100}%`, width: `${Math.max(1, ((p.max - p.min) / escalaP) * 100)}%` }} />
                         <i className="pd" style={{ left: `${(p.padrao / escalaP) * 100}%` }} />
@@ -306,8 +306,8 @@ export function DashboardView() {
                       </span>
                       <span className="muted num" style={{ fontSize: 11.5 }}>{fmtDur(p.min)} a {fmtDur(p.max)}</span>
                     </td>
-                    <td className="r num">{Math.round((p.noTempo / p.n) * 100)}%</td>
-                    <td onClick={(ev) => ev.stopPropagation()}>
+                    <td className="r num" data-l="No tempo">{Math.round((p.noTempo / p.n) * 100)}%</td>
+                    <td className="cel-larga" data-l="Sugestão" onClick={(ev) => ev.stopPropagation()}>
                       {sugere ? (
                         <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                           <span className={`chip ${p.desvio > 0 ? 'warn' : 'info'}`}>Padrão parece {p.desvio > 0 ? 'curto' : 'longo'}</span>
@@ -322,32 +322,32 @@ export function DashboardView() {
                   </tr>
                 );
               })}
-              {!d.produtos.length && <tr><td colSpan={7} className="empty">Sem OPs concluídas no período.</td></tr>}
+              {!d.produtos.length && <tr><td colSpan={7} className="vazio-td"><Vazio compacto icone="grafico" titulo="Sem OPs concluídas no período" /></td></tr>}
             </tbody>
           </table>
         </div>
         {d.produtos.length > 10 && (
-          <div style={{ padding: '10px 16px 14px' }}>
+          <div className="panel-pe">
             <button className="btn" onClick={() => setTodosProd((x) => !x)}>{todosProd ? 'Mostrar só os 10 primeiros' : `Mostrar todos os ${d.produtos.length} produtos`}</button>
           </div>
         )}
       </section>
 
       <section className="panel chart">
-        <div className="panel-head"><h2>Produção por dia</h2><span className="sp muted" style={{ fontSize: 12 }}>litros dos lotes concluídos · últimos 15 dias úteis</span></div>
+        <div className="panel-head"><h2>Produção por dia</h2><span className="sp nota">litros dos lotes concluídos · últimos 15 dias úteis</span></div>
         <Colunas serie={d.serie} />
       </section>
 
         </>
       )}
-      <div className="muted" style={{ fontSize: 11.5 }}>Considera as OPs concluídas nos últimos 120 dias. As OPs que o gerente finalizar entram aqui na hora. Atualizado {hora(agora)}.</div>
+      <div className="rodape-nota">Considera as OPs concluídas nos últimos 120 dias. As OPs que o gerente finalizar entram aqui na hora. Atualizado {hora(agora)}.</div>
       {opAberta && <DetalheOP id={opAberta} onClose={() => setOpAberta(null)} />}
     </main>
   );
 }
 
 function RankBarras({ itens, max, ativo, onClick }: { itens: { k: string; rotulo: string; n: number; min: number }[]; max: number; ativo: string | null; onClick: (k: string) => void }) {
-  if (!itens.length) return <div className="empty"><b>Nenhum atraso no período</b>Todas as OPs ficaram dentro da tolerância.</div>;
+  if (!itens.length) return <Vazio compacto icone="check" titulo="Nenhum atraso no período">Todas as OPs ficaram dentro da tolerância.</Vazio>;
   const total = itens.reduce((s, x) => s + x.min, 0);
   return (
     <div className="rank">
@@ -373,8 +373,8 @@ function DetalheOP({ id, onClose }: { id: string; onClose: () => void }) {
   const peds = o.alocacoes.map((a) => ({ a, p: e.pedidos.find((p) => p.id === a.pedidoId) })).filter((x) => x.p);
   return (
     <Modal onClose={onClose} label={`OP ${o.numero}`}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
+      <div className="modal-topo">
+        <div>
           <div className="eyebrow">OP {o.numero} · {nomeLinha(o.produtoId.split('.')[0])}</div>
           <h2 style={{ marginTop: 4 }}>{nomeOP(e, o)}</h2>
         </div>
@@ -388,7 +388,7 @@ function DetalheOP({ id, onClose }: { id: string; onClose: () => void }) {
         <div><span>Padrão</span><i className="std" style={{ width: `${(o.tempoPadraoMin / esc) * 100}%` }} /></div>
         <div><span>Real</span><i className={ruim ? 'bad' : 'ok'} style={{ width: `${(real / esc) * 100}%` }} /></div>
       </div>
-      <dl className="kv" style={{ margin: 0 }}>
+      <dl className="kv">
         <div><dt>Início</dt><dd>{o.inicio ? quando(new Date(o.inicio), agora) : '—'}</dd></div>
         <div><dt>Fim</dt><dd>{o.fim ? quando(new Date(o.fim), agora) : '—'}</dd></div>
         <div><dt>Lote</dt><dd>{fmtVol(o.lote)}</dd></div>

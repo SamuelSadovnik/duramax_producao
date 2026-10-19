@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ErroApi } from './api';
 import { useApp } from './store';
-import { Icon, Modal } from './ui';
+import { Icon, Modal, Vazio } from './ui';
 import { PERFIS, type Perfil, type Usuario } from '../shared/types';
 import { quando } from '../shared/fmt';
 
@@ -76,24 +76,23 @@ export function UsuariosView() {
           <label>Senha inicial<input id="nu-senha" className="input" type="text" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} required minLength={8} placeholder="mínimo 8 caracteres" /></label>
           <button className="btn pri" type="submit" disabled={enviando}>Criar</button>
         </form>
-        <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>{DESCRICAO[novo.perfil]}.</p>
+        <p className="usr-nota">{DESCRICAO[novo.perfil]}.</p>
       </section>
 
-      <section className="panel" style={{ padding: 0 }}>
+      <section className="panel flush">
         <div className="scroll-x">
-          <table className="t">
-            <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Último acesso</th><th>Situação</th><th></th></tr></thead>
+          <table className="t cartoes-tab">
+            <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Último acesso</th><th>Situação</th><th className="r">Ações</th></tr></thead>
             <tbody>
               {lista?.map((u) => (
                 <tr key={u.id} style={{ opacity: u.ativo ? 1 : 0.55 }}>
-                  <td><b style={{ fontWeight: 650 }}>{u.nome}</b>{u.id === eu.id && <span className="chip info" style={{ marginLeft: 6 }}>você</span>}</td>
-                  <td className="mono">{u.usuario}</td>
-                  <td>
+                  <td className="cel-tit"><span className="nome">{u.nome}</span>{u.id === eu.id && <span className="chip info" style={{ marginLeft: 8 }}>você</span>}</td>
+                  <td className="mono" data-l="Usuário">{u.usuario}</td>
+                  <td data-l="Perfil">
                     <select
                       id={`perfil-${u.id}`}
                       aria-label={`Perfil de ${u.nome}`}
-                      className="select"
-                      style={{ padding: '5px 8px' }}
+                      className="select sm"
                       value={u.perfil}
                       disabled={u.id === eu.id}
                       onChange={(e) => editar(u, { perfil: e.target.value as Perfil }, `${u.nome} agora é ${nomePerfil(e.target.value as Perfil)}.`)}
@@ -101,19 +100,21 @@ export function UsuariosView() {
                       {PERFIS.map((p) => <option key={p.k} value={p.k}>{p.l}</option>)}
                     </select>
                   </td>
-                  <td className="num muted">{u.ultimoAcesso ? quando(new Date(u.ultimoAcesso), agora) : 'nunca entrou'}</td>
-                  <td>{u.ativo ? <span className="chip ok">ativo</span> : <span className="chip">desativado</span>}</td>
-                  <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
-                    <button className="btn sm ghost" onClick={() => setSenhaDe(u)}>Nova senha</button>
+                  <td className="num muted nw" data-l="Último acesso">{u.ultimoAcesso ? quando(new Date(u.ultimoAcesso), agora) : 'nunca entrou'}</td>
+                  <td data-l="Situação">{u.ativo ? <span className="chip ok">ativo</span> : <span className="chip">desativado</span>}</td>
+                  <td className="cel-larga">
+                    <div className="acoes">
+                    <button className="btn sm" onClick={() => setSenhaDe(u)}><Icon n="chave" s={14} /> Nova senha</button>
                     {u.id !== eu.id && (
-                      <button className="btn sm ghost" onClick={() => editar(u, { ativo: !u.ativo }, u.ativo ? `${u.nome} desativado.` : `${u.nome} reativado.`)}>
+                      <button className={`btn sm${u.ativo ? ' danger' : ''}`} onClick={() => editar(u, { ativo: !u.ativo }, u.ativo ? `${u.nome} desativado.` : `${u.nome} reativado.`)}>
                         {u.ativo ? 'Desativar' : 'Reativar'}
                       </button>
                     )}
+                    </div>
                   </td>
                 </tr>
               ))}
-              {!lista && <tr><td colSpan={6} className="empty">Carregando…</td></tr>}
+              {!lista && <tr><td colSpan={6} className="vazio-td"><Vazio compacto icone="usuarios" titulo="Carregando usuários…" /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -127,7 +128,10 @@ function NovaSenha({ u, onClose, onSalvar }: { u: Usuario; onClose: () => void; 
   const [s, setS] = useState('');
   return (
     <Modal onClose={onClose} label="Nova senha">
-      <h2>Nova senha para {u.nome}</h2>
+      <div className="modal-topo">
+        <div><h2>Nova senha para {u.nome}</h2></div>
+        <button className="btn ghost icon" onClick={onClose} aria-label="Fechar"><Icon n="x" /></button>
+      </div>
       <input id="nova-senha-adm" className="input" value={s} onChange={(e) => setS(e.target.value)} minLength={8} placeholder="mínimo 8 caracteres" autoFocus />
       <div className="modal-acts">
         <button className="btn ghost" onClick={onClose}>Cancelar</button>
@@ -154,13 +158,13 @@ export function TrocarSenha({ onClose }: { onClose: () => void }) {
   }
   return (
     <Modal onClose={onClose} label="Trocar senha">
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <h2>Trocar minha senha</h2>
-        <button className="btn ghost icon" style={{ marginLeft: 'auto' }} onClick={onClose} aria-label="Fechar"><Icon n="x" /></button>
+      <div className="modal-topo">
+        <div><h2>Trocar minha senha</h2></div>
+        <button className="btn ghost icon" onClick={onClose} aria-label="Fechar"><Icon n="x" /></button>
       </div>
       <input id="senha-atual" className="input" type="password" placeholder="Senha atual" value={atual} onChange={(e) => setAtual(e.target.value)} autoComplete="current-password" />
       <input id="senha-nova" className="input" type="password" placeholder="Nova senha (mínimo 8)" value={nova} onChange={(e) => setNova(e.target.value)} autoComplete="new-password" />
-      {erro && <div className="chip crit" style={{ whiteSpace: 'normal' }}>{erro}</div>}
+      {erro && <div className="aviso crit"><Icon n="alert" s={14} /> <span>{erro}</span></div>}
       <div className="modal-acts">
         <button className="btn ghost" onClick={onClose}>Cancelar</button>
         <button className="btn pri" disabled={!atual || nova.length < 8} onClick={salvar}>Salvar</button>
