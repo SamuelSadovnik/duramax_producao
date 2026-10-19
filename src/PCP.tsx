@@ -1,20 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useApp } from './store';
+import { pode, useApp } from './store';
 import { Icon, PrazoChip } from './ui';
-import { calcularAgenda, liberarPedido, planejar, produtosSemParametro, situacaoPrazo, statusPedido, temParametros, volumePedido } from '../shared/engine';
+import { calcularAgenda, liberarPedido, planejar, prazoDoPedido, produtosSemParametro, situacaoPrazo, statusPedido, temParametros, volumePedido, type LinhaPlano } from '../shared/engine';
 import { CamposParam } from './ParamProduto';
-import { fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
+import { dataISOparaBR, fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
 import type { Decisao, Pedido } from '../shared/types';
 import { nomeLinha } from '../shared/catalog';
 import { api } from './api';
-import { pode } from './store';
+
+type Ordem = 'prazo' | 'chegada' | 'volume';
 
 export function PCPView() {
-  const { e, executar, abrirPedido, perfil, agora, toast } = useApp();
+  const { e, executar, abrirPedido, perfil, toast } = useApp();
+  const [q, setQ] = useState('');
+  const [ordem, setOrdem] = useState<Ordem>('prazo');
   const pend = useMemo(() => {
-    const pos = new Map(e.prioridade.map((id, i) => [id, i]));
-    return e.pedidos.filter((p) => statusPedido(e, p) === 'pcp').sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0));
-  }, [e]);
+    const ql = q.trim().toLowerCase();
+    const lista = e.pedidos
+      .filter((p) => statusPedido(e, p) === 'pcp')
+      .filter((p) => !ql || `${p.numero} ${p.fantasia} ${p.cliente} ${p.cidade}`.toLowerCase().includes(ql));
+    const prazo = (p: Pedido) => prazoDoPedido(e, p);
+    return lista.sort((a, b) =>
+      ordem === 'volume'
+        ? volumePedido(b) - volumePedido(a)
+        : ordem === 'chegada'
+          ? a.importadoEm.localeCompare(b.importadoEm)
+          : prazo(a).localeCompare(prazo(b)) || a.importadoEm.localeCompare(b.importadoEm),
+    );
+  }, [e, q, ordem]);
+  const total = useMemo(() => e.pedidos.filter((p) => statusPedido(e, p) === 'pcp').length, [e]);
   const [selId, setSel] = useState<string | null>(pend[0]?.id ?? null);
   useEffect(() => {
     if (!pend.find((p) => p.id === selId)) setSel(pend[0]?.id ?? null);
@@ -22,57 +36,73 @@ export function PCPView() {
   const sel = pend.find((p) => p.id === selId);
   const somenteVer = !pode.decidirPCP(perfil);
 
+  const liberar = async (p: Pedido) => {
+    const antes = e.ops.length;
+    let n = 0;
+    const ok = await executar(async () => {
+      const r = await api.liberar(p.id);
+      n = r.estado.ops.length - antes;
+      return r;
+    });
+    if (ok) toast({ texto: `Pedido #${p.numero} liberado: ${n} OP(s) nova(s) enviadas para a produção.`, tipo: 'ok' });
+  };
+
   return (
     <main className="page">
       <div className="page-head">
         <div>
           <h1>Análise do PCP</h1>
-          <p>Para cada item, decida se sai do estoque ou se vira OP. O sistema agrupa as embalagens do mesmo produto em lotes e aproveita OPs que ainda não começaram.</p>
+          <p>Escolha o pedido, defina o que sai do estoque e o que vira OP, e libere para a produção.</p>
         </div>
       </div>
-      {!pend.length ? (
-        <div className="panel empty">
+
+      {!total ? (
+        <div className="panel vazio-grande">
+          <Icon n="pcp" s={34} w={1.6} />
           <b>Nenhum pedido aguardando análise</b>
-          Quando o comercial importar um PDF, ele aparece aqui.
+          <span>Quando o comercial importar um PDF, ele aparece aqui.</span>
         </div>
       ) : (
-        <div className="pcp">
-          <div className="pcp-list">
-            <div className="eyebrow" style={{ padding: '0 2px' }}>{pend.length} aguardando</div>
-            {pend.map((p) => (
-              <button key={p.id} className={`pcard${p.id === selId ? ' sel' : ''}`} onClick={() => setSel(p.id)}>
-                <div className="pcard-top">
-                  <span className="nped">#{p.numero}</span>
-                  
-                  <span className="sp muted num" style={{ fontSize: 12 }}>{fmtVol(volumePedido(p))}</span>
-                </div>
-                <div className="cli">{titulo(p.fantasia)}</div>
-                <div className="meta">
-                  <span>{p.itens.length} itens</span>
-                  <span>chegou {quando(new Date(p.importadoEm), agora)}</span>
-                </div>
-                <div className="est"><PrazoChip p={p} /></div>
-              </button>
-            ))}
-          </div>
-          {sel && (
-            <Analise
-              key={sel.id}
-              p={sel}
-              somenteVer={somenteVer}
-              onLiberar={async () => {
-                const antes = e.ops.length;
-                let n = 0;
-                const ok = await executar(async () => {
-                  const r = await api.liberar(sel.id);
-                  n = r.estado.ops.length - antes;
-                  return r;
-                });
-                if (ok) toast({ texto: `Pedido #${sel.numero} liberado: ${n} OP(s) nova(s) enviadas para a produção.`, tipo: 'ok' });
-              }}
-              abrir={() => abrirPedido(sel.id)}
-            />
-          )}
+        <div className="pcp2">
+          <section className="panel pcp2-lista" aria-label="Pedidos aguardando análise">
+            <div className="pcp2-lista-topo">
+              <div className="pcp2-lista-tit">
+                <b>Aguardando</b>
+                <span className="contador">{total}</span>
+              </div>
+              <label className="search">
+                <Icon n="search" s={15} />
+                <span className="sr">Buscar</span>
+                <input id="busca-pcp" className="input" placeholder="Nº ou cliente" value={q} onChange={(ev) => setQ(ev.target.value)} />
+              </label>
+              <div className="seg" role="group" aria-label="Ordenar por">
+                <button aria-pressed={ordem === 'prazo'} onClick={() => setOrdem('prazo')}>Prazo</button>
+                <button aria-pressed={ordem === 'chegada'} onClick={() => setOrdem('chegada')}>Chegada</button>
+                <button aria-pressed={ordem === 'volume'} onClick={() => setOrdem('volume')}>Volume</button>
+              </div>
+            </div>
+            <div className="pcp2-itens">
+              {pend.map((p) => {
+                const decididos = p.itens.filter((i) => i.decisao !== 'pendente').length;
+                return (
+                  <button key={p.id} className={`pcp2-ped${p.id === selId ? ' sel' : ''}`} onClick={() => setSel(p.id)} aria-current={p.id === selId}>
+                    <span className="l1">
+                      <span className="mono">#{p.numero}</span>
+                      <span className="num muted">{fmtVol(volumePedido(p))}</span>
+                    </span>
+                    <span className="l2">{titulo(p.fantasia)}</span>
+                    <span className="l3">
+                      <PrazoChip p={p} />
+                      <span className="muted num">{decididos ? `${decididos}/${p.itens.length} decididos` : `${p.itens.length} itens`}</span>
+                    </span>
+                  </button>
+                );
+              })}
+              {!pend.length && <div className="empty">Nenhum pedido com esse filtro.</div>}
+            </div>
+          </section>
+
+          {sel && <Analise key={sel.id} p={sel} somenteVer={somenteVer} onLiberar={() => liberar(sel)} abrir={() => abrirPedido(sel.id)} />}
         </div>
       )}
     </main>
@@ -87,7 +117,7 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
   const grupos = useMemo(() => {
     const m = new Map<string, Pedido['itens']>();
     for (const i of p.itens) m.set(i.produtoId, [...(m.get(i.produtoId) ?? []), i]);
-    return [...m].sort((a, b) => a[0].localeCompare(b[0]));
+    return [...m].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }));
   }, [p]);
 
   const decidir = async (ids: string[], d: Decisao) => {
@@ -102,15 +132,16 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
   };
 
   const plano = useMemo(() => planejar(e, p), [e, p]);
+  const planoDe = useMemo(() => new Map<string, LinhaPlano>(plano.map((l) => [l.produtoId, l])), [plano]);
   const pendentes = p.itens.filter((i) => i.decisao === 'pendente').length;
+  const decididos = p.itens.length - pendentes;
   const novasOps = plano.reduce((s, l) => s + l.novas.length, 0);
   const tempo = plano.reduce((s, l) => s + l.tempoMin, 0);
-  const sobra = plano.reduce((s, l) => s + l.sobra, 0);
   const volOP = plano.reduce((s, l) => s + l.necessidade, 0);
   const volEst = p.itens.filter((i) => i.decisao === 'estoque').reduce((s, i) => s + i.volume, 0);
   const semParam = produtosSemParametro(e, p);
+  const podeParam = pode.parametros(perfil);
 
-  // simulação: como ficaria se liberasse agora
   const simul = useMemo(() => {
     if (pendentes || semParam.length) return null;
     const e2 = liberarPedido(e, p.id, agora);
@@ -122,162 +153,181 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
 
   const todos = p.itens.map((i) => i.id);
   const linhas = [...new Set(grupos.map(([pid]) => pid.split('.')[0]))];
+  const bloqueio = pendentes
+    ? `Faltam ${pendentes} ${pendentes === 1 ? 'item' : 'itens'} para decidir.`
+    : semParam.length
+      ? `Falta informar lote e tempo de ${semParam.length} produto${semParam.length > 1 ? 's' : ''} (marcados abaixo).`
+      : '';
 
   return (
-    <>
-      <div className="panel" style={{ padding: 0, minWidth: 0 }}>
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span className="mono" style={{ fontWeight: 600 }}>#{p.numero}</span>
-              <button className="btn ghost sm" onClick={abrir}>Ver pedido</button>
-            </div>
-            <b style={{ fontSize: 17 }}>{titulo(p.fantasia)}</b>
-            <div className="muted" style={{ fontSize: 12.5 }}>{grupos.length} produtos · {p.itens.length} itens · {fmtVol(volumePedido(p))}</div>
+    <section className="pcp2-det" aria-label={`Pedido ${p.numero}`}>
+      <div className="panel pcp2-cab">
+        <div className="pcp2-cab-l">
+          <div className="pcp2-cab-n">
+            <span className="mono">#{p.numero}</span>
+            <PrazoChip p={p} />
           </div>
-          {!somenteVer && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button className="btn sm" onClick={() => decidir(todos, 'estoque')}>Tudo do estoque</button>
-              <button className="btn sm" onClick={() => decidir(todos, 'op')}>Tudo vira OP</button>
-            </div>
-          )}
+          <h2>{titulo(p.fantasia)}</h2>
+          <div className="pcp2-meta">
+            <span>{titulo(p.cidade)}/{p.uf}</span>
+            <span>{titulo(p.vendedor)}</span>
+            <span>entrou {quando(new Date(p.importadoEm), agora)}</span>
+            <span>prazo {dataISOparaBR(prazoDoPedido(e, p))}</span>
+          </div>
         </div>
-        <div style={{ padding: '4px 12px 8px' }}>
-          {linhas.map((ln) => (
-            <div key={ln}>
-              <div className="eyebrow" style={{ padding: '14px 4px 4px' }}>{nomeLinha(ln)}</div>
-              {grupos
-                .filter(([pid]) => pid.split('.')[0] === ln)
-                .map(([pid, its]) => {
-                  const prod = e.produtos[pid];
-                  const vol = its.reduce((s, i) => s + i.volume, 0);
-                  const decs = new Set(its.map((i) => i.decisao));
-                  const g: Decisao | 'misto' = decs.size === 1 ? [...decs][0] : 'misto';
-                  const ids = its.map((i) => i.id);
-                  const exp = aberto[pid] ?? g === 'misto';
-                  return (
-                    <div className="grp" key={pid}>
-                      <div className="grp-head">
-                        <div className="nm">
-                          {prod?.nome ?? pid}
-                          <small>
-                            <span className="mono">{pid}</span> · {its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}
-                            {!temParametros(prod) && <span className="chip warn" style={{ marginLeft: 6 }}>sem parâmetro</span>}
-                          </small>
-                        </div>
-                        <b className="num" style={{ minWidth: 70, textAlign: 'right' }}>{fmtVol(vol)}</b>
-                        <div className="dec" role="group" aria-label={`Decisão para ${prod?.nome}`}>
-                          <button className="on-est" aria-pressed={g === 'estoque'} disabled={somenteVer} onClick={() => decidir(ids, 'estoque')}>Estoque</button>
-                          <button className="on-op" aria-pressed={g === 'op'} disabled={somenteVer} onClick={() => decidir(ids, 'op')}>Produzir</button>
-                        </div>
-                        <span className="grp-tog">
-                          {its.length > 1 && (
-                            <button className="btn ghost sm" onClick={() => setAberto((x) => ({ ...x, [pid]: !exp }))} aria-expanded={exp}>
-                              {g === 'misto' ? 'Misto · ' : ''}{exp ? 'Ocultar' : 'Por embalagem'}
-                            </button>
-                          )}
-                          {its.length === 1 && g === 'pendente' && <span className="chip warn">decidir</span>}
-                        </span>
-                      </div>
-                      {exp && (
-                        <div className="grp-items">
-                          {its.map((i) => (
-                            <div className="grp-item" key={i.id}>
-                              <span className="mono muted">{i.codigo}</span>
-                              <span className="hide-sm" style={{ minWidth: 0 }}>{i.codFab}</span>
-                              <span className="num">{nf(i.qtde)} × {nf(i.embalagem, 1)} L</span>
-                              <span className="num hide-sm" style={{ textAlign: 'right' }}>{fmtVol(i.volume)}</span>
-                              <div className="dec">
-                                <button className="on-est" aria-pressed={i.decisao === 'estoque'} disabled={somenteVer} onClick={() => decidir([i.id], 'estoque')}>Estoque</button>
-                                <button className="on-op" aria-pressed={i.decisao === 'op'} disabled={somenteVer} onClick={() => decidir([i.id], 'op')}>Produzir</button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          ))}
+        <div className="pcp2-cab-a">
+          <button className="btn ghost sm" onClick={abrir}>Ver pedido</button>
+          {!somenteVer && (
+            <>
+              <button className="btn sm" disabled={ocupado} onClick={() => decidir(todos, 'estoque')}>Tudo do estoque</button>
+              <button className="btn sm" disabled={ocupado} onClick={() => decidir(todos, 'op')}>Tudo vira OP</button>
+            </>
+          )}
         </div>
       </div>
 
-      <aside className="plan">
-        <div className="panel">
-          <div className="panel-head"><h2>Plano de produção</h2></div>
-          <div className="big-stat">
-            <div><b>{novasOps}</b><span>OPs novas</span></div>
-            <div><b>{fmtDur(tempo)}</b><span>de produção</span></div>
-            <div><b>{fmtVol(volOP)}</b><span>a produzir</span></div>
-            <div><b>{fmtVol(volEst)}</b><span>do estoque</span></div>
-          </div>
-          <div style={{ marginTop: 14, padding: '12px', borderRadius: 8, background: 'var(--surface-2)' }}>
-            {pendentes ? (
-              <span className="fg2" style={{ fontSize: 13 }}>
-                Faltam <b>{pendentes}</b> {pendentes === 1 ? 'item' : 'itens'} para decidir. A estimativa aparece quando todos estiverem definidos.
-              </span>
-            ) : semParam.length ? (
-              <span className="fg2" style={{ fontSize: 13 }}>
-                Falta informar <b>lote e tempo</b> de {semParam.length} produto{semParam.length > 1 ? 's' : ''} (lista abaixo). Sem isso não dá para montar as OPs nem estimar a entrega.
-              </span>
-            ) : simul ? (
-              <>
-                <div className="eyebrow">Se liberar agora, fica pronto</div>
-                <div style={{ fontSize: 22, fontStretch: '78%', fontWeight: 750 }} className="num">{simul.fim ? quando(simul.fim, agora) : 'imediatamente (tudo em estoque)'}</div>
-                {simul.prazo.tipo !== 'sem' && (
-                  <span className={`chip ${simul.prazo.tipo === 'ok' ? 'ok' : simul.prazo.tipo === 'risco' ? 'warn' : 'crit'}`} style={{ marginTop: 6 }}>{simul.prazo.texto}</span>
-                )}
-                <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>Na posição atual da fila. Mude a prioridade em Fila e previsão.</div>
-              </>
-            ) : null}
-          </div>
-          {!somenteVer && (
-            <button className="btn pri" style={{ width: '100%', marginTop: 12, minHeight: 42 }} disabled={pendentes > 0 || semParam.length > 0 || ocupado} onClick={liberar}>
-              <Icon n="check" s={16} w={2.4} /> Liberar para produção
-            </button>
-          )}
-          {somenteVer && <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>Somente o PCP libera pedidos para produção.</div>}
+      <div className="panel pcp2-resumo">
+        <div className="rs">
+          <span className="rs-l">Decididos</span>
+          <b className="num">{decididos}<small>/{p.itens.length}</small></b>
+          <div className="bar" aria-hidden="true"><i className="done" style={{ width: `${(decididos / p.itens.length) * 100}%` }} /></div>
         </div>
-
-        {plano.length > 0 && (
-          <div className="panel">
-            <div className="panel-head"><h2>Lotes</h2><span className="sp muted" style={{ fontSize: 12 }}>{plano.length} produto(s)</span></div>
-            {[...plano].sort((a, b) => Number(b.semParametro) - Number(a.semParametro)).map((l) => {
-              const prod = e.produtos[l.produtoId];
-              return (
-                <div className="plan-row" key={l.produtoId}>
-                  <span className="nm">{prod?.nome ?? l.produtoId}</span>
-                  <div className="ln">
-                    <span className="num">{fmtVol(l.necessidade)}</span>
-                    {temParametros(prod) && <span className="muted">· lote {fmtVol(prod.lote)} · {fmtDur(prod.tempoMin)}/lote</span>}
-                  </div>
-                  {l.semParametro && prod && (
-                    <div className="ln param-pcp">
-                      <span className="chip warn">sem parâmetro</span>
-                      {pode.parametros(perfil) ? (
-                        <CamposParam p={prod} pode comBotao onSalvar={(x) => executar(() => api.produto(prod.id, x), `${prod.nome}: lote e tempo salvos.`)} />
-                      ) : (
-                        <span className="muted" style={{ fontSize: 12 }}>o PCP precisa informar lote e tempo</span>
-                      )}
-                    </div>
-                  )}
-                  <div className="ln">
-                    {l.aproveita.map((a) => (
-                      <span key={a.opId} className="chip ok" title="OP ainda não iniciada com volume livre">
-                        <Icon n="bolt" s={11} /> aproveita OP {a.numero} ({fmtVol(a.volume)})
-                      </span>
-                    ))}
-                    {l.novas.length > 0 && <span className="chip info">{l.novas.length} OP{l.novas.length > 1 ? 's' : ''} nova{l.novas.length > 1 ? 's' : ''}</span>}
-                    {l.sobra > 0.5 && <span className="chip">sobra {fmtVol(l.sobra)} p/ estoque</span>}
-                  </div>
-                </div>
-              );
-            })}
-            {sobra > 0 && <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>A sobra dos lotes fica livre para o próximo pedido do mesmo produto enquanto a OP não começar.</div>}
-          </div>
+        <div className="rs"><span className="rs-l">A produzir</span><b className="num">{fmtVol(volOP)}</b><span className="rs-s">{novasOps} OP{novasOps === 1 ? '' : 's'} nova{novasOps === 1 ? '' : 's'}</span></div>
+        <div className="rs"><span className="rs-l">Do estoque</span><b className="num">{fmtVol(volEst)}</b><span className="rs-s">{p.itens.filter((i) => i.decisao === 'estoque').length} itens</span></div>
+        <div className="rs"><span className="rs-l">Produção</span><b className="num">{tempo ? fmtDur(tempo) : '—'}</b><span className="rs-s">tempo padrão somado</span></div>
+        <div className="rs rs-fim">
+          <span className="rs-l">Se liberar agora</span>
+          {simul ? (
+            <>
+              <b className="num">{simul.fim ? quando(simul.fim, agora) : 'na hora'}</b>
+              {simul.prazo.tipo !== 'sem' && (
+                <span className={`chip ${simul.prazo.tipo === 'ok' ? 'ok' : simul.prazo.tipo === 'risco' ? 'warn' : 'crit'}`}>{simul.prazo.texto}</span>
+              )}
+            </>
+          ) : (
+            <b className="muted">—</b>
+          )}
+        </div>
+        {!somenteVer && (
+          <button className="btn pri pcp2-liberar" disabled={!!bloqueio || ocupado} onClick={liberar}>
+            <Icon n="check" s={17} w={2.4} /> Liberar para produção
+          </button>
         )}
-      </aside>
-    </>
+      </div>
+      {bloqueio && (
+        <div className="pcp2-aviso" role="status">
+          <Icon n="info" s={15} /> {bloqueio}
+        </div>
+      )}
+
+      <div className="panel pcp2-tab">
+        <div className="scroll-x">
+          <table className="t pcp2-t">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th className="r">Volume</th>
+                <th>Decisão</th>
+                <th>Plano de produção</th>
+              </tr>
+            </thead>
+            {linhas.map((ln) => (
+              <tbody key={ln}>
+                <tr className="pcp2-linha"><td colSpan={4}>{nomeLinha(ln)}</td></tr>
+                {grupos
+                  .filter(([pid]) => pid.split('.')[0] === ln)
+                  .flatMap(([pid, its]) => {
+                    const prod = e.produtos[pid];
+                    const vol = its.reduce((s, i) => s + i.volume, 0);
+                    const decs = new Set(its.map((i) => i.decisao));
+                    const g: Decisao | 'misto' = decs.size === 1 ? [...decs][0] : 'misto';
+                    const ids = its.map((i) => i.id);
+                    const exp = aberto[pid] ?? g === 'misto';
+                    const l = planoDe.get(pid);
+                    const linhasTab = [
+                      <tr key={pid} className={`pcp2-prod${g === 'pendente' ? ' pend' : ''}`}>
+                        <td>
+                          <b className="pn">{prod?.nome ?? pid}</b>
+                          <span className="ps">
+                            <span className="mono">{pid}</span> · {its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}
+                            {its.length > 1 && (
+                              <button className="lnk" onClick={() => setAberto((x) => ({ ...x, [pid]: !exp }))} aria-expanded={exp}>
+                                {exp ? 'ocultar embalagens' : 'por embalagem'}
+                              </button>
+                            )}
+                          </span>
+                        </td>
+                        <td className="r num"><b>{fmtVol(vol)}</b></td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <div className="dec" role="group" aria-label={`Decisão para ${prod?.nome}`}>
+                            <button className="on-est" aria-pressed={g === 'estoque'} disabled={somenteVer || ocupado} onClick={() => decidir(ids, 'estoque')}>Estoque</button>
+                            <button className="on-op" aria-pressed={g === 'op'} disabled={somenteVer || ocupado} onClick={() => decidir(ids, 'op')}>Produzir</button>
+                          </div>
+                          {g === 'misto' && <span className="chip" style={{ marginLeft: 6 }}>misto</span>}
+                        </td>
+                        <td>
+                          <Plano l={l} decisao={g} prodOk={temParametros(prod)} />
+                          {l?.semParametro && prod && (
+                            <div className="pcp2-param">
+                              {podeParam ? (
+                                <CamposParam p={prod} pode comBotao onSalvar={(x) => executar(() => api.produto(prod.id, x), `${prod.nome}: lote e tempo salvos.`)} />
+                              ) : (
+                                <span className="muted">o PCP precisa informar lote e tempo</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>,
+                    ];
+                    if (exp)
+                      for (const i of its)
+                        linhasTab.push(
+                          <tr key={i.id} className="pcp2-emb">
+                            <td>
+                              <span className="mono muted">{i.codigo}</span> <span className="mono">{i.codFab}</span>
+                              <span className="muted"> · {nf(i.qtde)} × {nf(i.embalagem, 1)} L</span>
+                            </td>
+                            <td className="r num">{fmtVol(i.volume)}</td>
+                            <td colSpan={2}>
+                              <div className="dec">
+                                <button className="on-est" aria-pressed={i.decisao === 'estoque'} disabled={somenteVer || ocupado} onClick={() => decidir([i.id], 'estoque')}>Estoque</button>
+                                <button className="on-op" aria-pressed={i.decisao === 'op'} disabled={somenteVer || ocupado} onClick={() => decidir([i.id], 'op')}>Produzir</button>
+                              </div>
+                            </td>
+                          </tr>,
+                        );
+                    return linhasTab;
+                  })}
+              </tbody>
+            ))}
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Plano({ l, decisao, prodOk }: { l?: LinhaPlano; decisao: Decisao | 'misto'; prodOk: boolean }) {
+  const { e } = useApp();
+  if (decisao === 'pendente') return <span className="chip warn">decidir</span>;
+  if (decisao === 'estoque') return <span className="muted">sai do estoque</span>;
+  if (!l) return null;
+  const prod = e.produtos[l.produtoId];
+  return (
+    <span className="plano-chips">
+      {l.semParametro && <span className="chip warn">sem lote e tempo</span>}
+      {l.aproveita.map((a) => (
+        <span key={a.opId} className="chip ok" title="OP ainda não iniciada com volume livre">
+          <Icon n="bolt" s={11} /> OP {a.numero} ({fmtVol(a.volume)})
+        </span>
+      ))}
+      {l.novas.length > 0 && (
+        <span className="chip info">
+          {l.novas.length} OP{l.novas.length > 1 ? 's' : ''} nova{l.novas.length > 1 ? 's' : ''}
+        </span>
+      )}
+      {prodOk && prod && l.novas.length > 0 && <span className="muted">lote {fmtVol(prod.lote!)} · {fmtDur(prod.tempoMin!)}</span>}
+      {l.sobra > 0.5 && <span className="muted">· sobra {fmtVol(l.sobra)}</span>}
+    </span>
   );
 }
