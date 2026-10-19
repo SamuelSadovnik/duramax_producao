@@ -9,7 +9,8 @@ let pool: pg.Pool | null = null;
 
 export function db(): pg.Pool {
   if (!pool) {
-    const url = process.env.DATABASE_URL;
+    // a integração Neon da Vercel cria DATABASE_URL; POSTGRES_URL fica como alternativa
+    const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
     if (!url) throw new Error('DATABASE_URL não configurada.');
     const local = /localhost|127\.0\.0\.1|@db:/.test(url);
     pool = new pg.Pool({
