@@ -32,7 +32,7 @@ export function CamposParam({ p, pode, onSalvar, comBotao }: { p: Produto; pode:
         aria-label={`Lote de ${p.nome} (litros)`}
         className={`cell-in${f.lote && !f.okLote ? ' bad' : ''}`}
         value={f.lote}
-        placeholder="lote L"
+        placeholder="lote (L)"
         disabled={!pode}
         inputMode="decimal"
         onChange={(ev) => f.setLote(ev.target.value)}

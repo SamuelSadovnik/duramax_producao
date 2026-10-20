@@ -195,7 +195,7 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
           </span>
         </div>
         {!somenteVer && (
-          <button className="btn pri lg pcp2-liberar" disabled={!!bloqueio || ocupado} onClick={liberar}>
+          <button className="btn pri grande pcp2-liberar" disabled={!!bloqueio || ocupado} onClick={liberar}>
             <Icon n="check" s={17} w={2.4} /> Liberar para produção
           </button>
         )}
@@ -244,15 +244,18 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
                           {g === 'misto' && <span className="chip" style={{ marginLeft: 6 }}>misto</span>}
                         </td>
                         <td className="cel-larga" data-l="Plano de produção">
-                          <Plano l={l} decisao={g} prodOk={temParametros(prod)} />
-                          {l?.semParametro && prod && (
+                          {l?.semParametro && prod ? (
+                            // produto sem lote e tempo: o formulário fica numa linha só, alinhado com o resto da linha
                             <div className="pcp2-param">
+                              <span className="chip warn" title="Produto sem lote e tempo cadastrados"><Icon n="alert" s={12} /> sem parâmetro</span>
                               {podeParam ? (
                                 <CamposParam p={prod} pode comBotao onSalvar={(x) => executar(() => api.produto(prod.id, x), `${prod.nome}: lote e tempo salvos.`)} />
                               ) : (
                                 <span className="muted">o PCP precisa informar lote e tempo</span>
                               )}
                             </div>
+                          ) : (
+                            <Plano l={l} decisao={g} prodOk={temParametros(prod)} />
                           )}
                         </td>
                       </tr>,
@@ -303,7 +306,6 @@ function Plano({ l, decisao, prodOk }: { l?: LinhaPlano; decisao: Decisao | 'mis
   const prod = e.produtos[l.produtoId];
   return (
     <span className="plano-chips">
-      {l.semParametro && <span className="chip warn">sem lote e tempo</span>}
       {l.aproveita.map((a) => (
         <span key={a.opId} className="chip ok" title="OP ainda não iniciada com volume livre">
           <Icon n="bolt" s={11} /> OP {a.numero} ({fmtVol(a.volume)})

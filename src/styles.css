@@ -574,7 +574,9 @@ table.t { width: 100%; border-collapse: collapse; font-size: 13px; table-layout:
 .pcp2-t .pcp2-emb td { padding-top: 7px; padding-bottom: 7px; font-size: 12.5px; background: var(--surface-sub); }
 .pcp2-t .pcp2-emb td:first-child { padding-left: calc(var(--pad) + 14px); }
 .plano-chips { display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 12.5px; }
-.pcp2-param { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+.pcp2-param { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pcp2-param .cell-in { width: 86px; }
+.pcp2-param .btn.sm { min-height: 34px; }
 
 /* Estoque × Produzir: dois botões de verdade, o escolhido fica colorido */
 .dec { display: inline-flex; gap: 6px; }
