@@ -239,7 +239,15 @@ function Confirmar({ acao, onClose }: { acao: NonNullable<Acao>; onClose: () => 
   const real = acao.tipo === 'finalizar' && inicioD ? expedienteEntre(inicioD, quandoD, fer) : 0;
   const limite = op.tempoPadraoMin * (1 + e.config.toleranciaPct / 100);
   const precisaMotivo = acao.tipo === 'finalizar' && real > limite;
-  const invalido = isNaN(quandoD.getTime()) || (acao.tipo === 'finalizar' && (!inicioD || quandoD <= inicioD)) || quandoD > new Date(Date.now() + 60_000);
+  // diz exatamente o que está errado no horário, em vez de uma mensagem genérica
+  const erroHorario = isNaN(quandoD.getTime()) || (acao.tipo === 'finalizar' && (!inicioD || isNaN(inicioD.getTime())))
+    ? 'Preencha a data e a hora.'
+    : acao.tipo === 'finalizar' && inicioD && quandoD <= inicioD
+      ? 'O término precisa ser depois do início.'
+      : quandoD > new Date(Date.now() + 60_000)
+        ? `O ${acao.tipo === 'iniciar' ? 'início' : 'término'} não pode ser depois de agora (${hora(new Date())}).`
+        : '';
+  const invalido = !!erroHorario;
   const nome = nomeOP(e, op);
   const libera = acao.tipo === 'finalizar' ? liberaAoTerminar(e, op) : [];
 
@@ -320,13 +328,13 @@ function Confirmar({ acao, onClose }: { acao: NonNullable<Acao>; onClose: () => 
           <textarea id="obs-atraso" className="input" rows={2} placeholder="Observação (opcional)" value={obs} onChange={(ev) => setObs(ev.target.value)} />
         </div>
       )}
-      {invalido && <div className="aviso crit"><Icon n="alert" s={14} /> <span>Confira os horários: o término precisa ser depois do início e não pode estar no futuro.</span></div>}
+      {invalido && <div className="aviso crit"><Icon n="alert" s={14} /> <span>{erroHorario}</span></div>}
 
       <div className="modal-acts">
-        <button className="btn lg" style={{ minHeight: 52 }} onClick={onClose}>Cancelar</button>
+        <button className="btn grande" onClick={onClose}>Cancelar</button>
         <button
-          className={`btn lg ${acao.tipo === 'iniciar' ? 'pri' : 'ok'}`}
-          style={{ minHeight: 52, minWidth: 200, fontSize: 16 }}
+          className={`btn grande ${acao.tipo === 'iniciar' ? 'pri' : 'ok'}`}
+          style={{ minWidth: 200 }}
           disabled={invalido || enviando || (precisaMotivo && !motivo)}
           onClick={ok}
         >
