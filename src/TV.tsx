@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useApp, useRelogio } from './store';
 import { Icon, nomeOP } from './ui';
 import { filaOrdenada } from '../shared/engine';
@@ -6,6 +6,80 @@ import { expedienteEntre, situacaoTurno } from '../shared/calendar';
 import { dataCurta, diaSemanaLongo, fmtDur, fmtVol, hora, mesmoDia, quando, titulo } from '../shared/fmt';
 const logo = '/logo-h-white.png';
 
+/**
+ * Lista que rola sozinha para cima quando não cabe na coluna (como painel de aeroporto).
+ * Se couber, fica parada. O conteúdo é repetido para a volta ficar contínua.
+ */
+function Rolagem({ children, pxPorSeg = 28 }: { children: ReactNode; pxPorSeg?: number }) {
+  const caixa = useRef<HTMLDivElement>(null);
+  const bloco = useRef<HTMLDivElement>(null);
+  const [altura, setAltura] = useState(0);
+  const [anda, setAnda] = useState(false);
+  useLayoutEffect(() => {
+    const medir = () => {
+      const c = caixa.current;
+      const b = bloco.current;
+      if (!c || !b) return;
+      const h = b.offsetHeight;
+      // só troca a velocidade quando a altura muda de verdade, para a animação não pular
+      setAltura((x) => (Math.abs(x - h) > 6 ? h : x));
+      setAnda(h > c.clientHeight + 4);
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    if (caixa.current) ro.observe(caixa.current);
+    if (bloco.current) ro.observe(bloco.current);
+    return () => ro.disconnect();
+  }, []);
+  const estilo = anda ? ({ '--dist': `${altura}px`, animationDuration: `${Math.max(12, altura / pxPorSeg)}s` } as CSSProperties) : undefined;
+  return (
+    <div className={`tv-rola${anda ? ' anda' : ''}`} ref={caixa}>
+      <div className="tv-rola-in" style={estilo}>
+        <div className="tv-rola-bloco" ref={bloco}>{children}</div>
+        {anda && <div className="tv-rola-bloco" aria-hidden="true">{children}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** Faixa que corre para o lado o tempo todo; se o texto for curto, ele se repete até encher a tela. */
+function Letreiro({ rotulo, itens }: { rotulo: string; itens: string[] }) {
+  const caixa = useRef<HTMLDivElement>(null);
+  const trilho = useRef<HTMLDivElement>(null);
+  const [larg, setLarg] = useState(0);
+  const [reps, setReps] = useState(1);
+  useLayoutEffect(() => {
+    const medir = () => {
+      const c = caixa.current;
+      const t = trilho.current;
+      if (!c || !t || !t.offsetWidth) return;
+      setLarg(t.offsetWidth);
+      setReps(Math.max(1, Math.ceil(c.clientWidth / t.offsetWidth)));
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    if (caixa.current) ro.observe(caixa.current);
+    if (trilho.current) ro.observe(trilho.current);
+    return () => ro.disconnect();
+  }, [itens.join('|')]);
+  const dist = larg * reps;
+  const estilo = larg ? ({ '--dist': `${dist}px`, animationDuration: `${Math.max(16, dist / 70)}s` } as CSSProperties) : undefined;
+  const copias = larg ? reps * 2 : 1;
+  return (
+    <div className="tv-ticker">
+      <span className="lab">{rotulo}</span>
+      <div className={`tv-letreiro${larg ? ' anda' : ''}`} ref={caixa}>
+        <div className="tv-letreiro-in" style={estilo}>
+          {Array.from({ length: copias }, (_, k) => (
+            <div key={k} className="tv-letreiro-trilho" ref={k === 0 ? trilho : undefined} aria-hidden={k > 0 || undefined}>
+              {itens.map((t, j) => <span key={j}>{t}</span>)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void; rotuloSair?: string }) {
   const { e, agenda } = useApp();
@@ -69,6 +143,7 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
       <div className="tv-cols">
         <section className="tv-col">
           <h2><i style={{ background: 'var(--tv-run)' }} />EM PRODUÇÃO<span className="n">{emProd.length}</span></h2>
+          <Rolagem>
           {emProd.map((o) => {
             const dec = expedienteEntre(new Date(o.inicio!), agora, fer);
             const late = dec > o.tempoPadraoMin;
@@ -91,11 +166,13 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
             );
           })}
           {!emProd.length && <div className="tv-empty">Nenhuma OP em produção. Próxima: {fila[0] ? nomeOP(e, fila[0]) : '—'}</div>}
+          </Rolagem>
         </section>
 
         <section className="tv-col">
           <h2><i style={{ background: 'var(--tv-warn)' }} />PRÓXIMAS<span className="n">{fila.length}</span></h2>
-          {fila.slice(0, 7).map((o, i) => {
+          <Rolagem>
+          {fila.map((o, i) => {
             const pv = agenda.ops.get(o.id);
             const peds = o.alocacoes.map((a) => e.pedidos.find((p) => p.id === a.pedidoId)).filter(Boolean);
             return (
@@ -108,13 +185,14 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
               </div>
             );
           })}
-          {fila.length > 7 && <div className="tv-empty">+ {fila.length - 7} na fila</div>}
           {!fila.length && <div className="tv-empty">Fila vazia.</div>}
+          </Rolagem>
         </section>
 
         <section className="tv-col">
           <h2><i style={{ background: 'var(--tv-ok)' }} />PRONTAS HOJE<span className="n">{hoje.length}</span></h2>
-          {hoje.slice(0, 6).map((o) => (
+          <Rolagem>
+          {hoje.map((o) => (
             <div key={o.id} className="tv-done">
               <Icon n="check" s={24} w={3} />
               <span className="pn">{nomeOP(e, o)}<small>OP {o.numero} · {fmtVol(o.lote)}</small></span>
@@ -122,23 +200,22 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
             </div>
           ))}
           {!hoje.length && <div className="tv-empty">Nada concluído hoje ainda.</div>}
+          </Rolagem>
           <div className="tv-sub">PEDIDOS LIBERADOS P/ EXPEDIÇÃO · {aguardandoExp.length}</div>
-          {aguardandoExp.slice(0, 5).map((p) => (
+          <Rolagem pxPorSeg={22}>
+          {aguardandoExp.map((p) => (
             <div key={p.id} className="tv-ped">
-              #{p.numero} {titulo(p.fantasia).slice(0, 22)}
+              <b>#{p.numero} {titulo(p.fantasia)}</b>
               <span>{titulo(p.cidade)}/{p.uf}</span>
             </div>
           ))}
+          {!aguardandoExp.length && <div className="tv-empty">Nenhum pedido esperando expedição.</div>}
+          </Rolagem>
         </section>
       </div>
 
       {liberadosHoje.length > 0 && (
-        <div className="tv-ticker">
-          <span className="lab">LIBERADOS HOJE</span>
-          {liberadosHoje.map((p) => (
-            <span key={p.id}>#{p.numero} {titulo(p.fantasia)} → {titulo(p.transportadora).split(' ')[0]}</span>
-          ))}
-        </div>
+        <Letreiro rotulo="LIBERADOS HOJE" itens={liberadosHoje.map((p) => `#${p.numero} ${titulo(p.fantasia)} → ${titulo(p.transportadora).split(' ')[0]}`)} />
       )}
 
       <div className="tv-exit">

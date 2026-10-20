@@ -847,10 +847,28 @@ button.fl-stat { cursor: default; }
 .tv-done .pn small { display: block; color: var(--tv-dim); font-size: 0.75em; font-weight: 600; }
 .tv-done .h { font-variant-numeric: tabular-nums; color: var(--tv-dim); font-size: clamp(12px, 1.8vh, 22px); font-weight: 700; }
 .tv-sub { font-size: clamp(11px, 1.7vh, 20px); letter-spacing: 0.1em; font-weight: 800; color: var(--tv-ok); margin-top: 1vh; }
-.tv-ped { display: flex; justify-content: space-between; gap: 1vw; font-size: clamp(13px, 2vh, 26px); font-weight: 700; padding: 0.7vh 0; }
+.tv-ped { display: flex; justify-content: space-between; align-items: baseline; gap: 1vw; font-size: clamp(13px, 2vh, 26px); font-weight: 700; padding: 0.7vh 0; border-bottom: 1px solid var(--tv-line); }
+.tv-ped b { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-ped span { flex: none; }
 .tv-ped span { color: var(--tv-dim); }
 .tv-ticker { background: var(--tv-panel); border-radius: 10px; padding: 1vh 1.2vw; display: flex; gap: 1.2vw; align-items: center; font-size: clamp(12px, 2vh, 24px); font-weight: 700; white-space: nowrap; overflow: hidden; }
-.tv-ticker .lab { color: var(--tv-warn); letter-spacing: 0.08em; }
+.tv-ticker .lab { color: var(--tv-warn); letter-spacing: 0.08em; flex: none; padding-right: 1.2vw; border-right: 2px solid var(--tv-line); }
+/* letreiro: o texto corre da direita para a esquerda sem parar */
+.tv-letreiro { flex: 1; min-width: 0; overflow: hidden; }
+.tv-letreiro.anda { mask-image: linear-gradient(90deg, transparent, #000 3%, #000 95%, transparent); }
+.tv-letreiro-in { display: flex; width: max-content; }
+.tv-letreiro.anda .tv-letreiro-in { animation: tv-corre linear infinite; }
+.tv-letreiro-trilho { display: flex; flex: none; }
+.tv-letreiro-trilho span { padding-right: 3vw; }
+.tv-letreiro-trilho span::before { content: '●'; color: var(--tv-ok); margin-right: 0.8vw; font-size: 0.7em; vertical-align: 0.15em; }
+@keyframes tv-corre { from { transform: translateX(0); } to { transform: translateX(calc(-1 * var(--dist))); } }
+/* colunas que rolam para cima quando não cabem */
+.tv-rola { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.tv-rola.anda { mask-image: linear-gradient(180deg, transparent, #000 3%, #000 92%, transparent); }
+.tv-rola-bloco { display: flex; flex-direction: column; gap: 1.2vh; padding-bottom: 1.2vh; }
+.tv-rola.anda .tv-rola-in { animation: tv-sobe linear infinite; }
+@keyframes tv-sobe { from { transform: translateY(0); } to { transform: translateY(calc(-1 * var(--dist))); } }
+@media (prefers-reduced-motion: reduce) { .tv-rola.anda .tv-rola-in, .tv-letreiro.anda .tv-letreiro-in { animation: none !important; } .tv-rola.anda { overflow-y: auto; } }
 .tv-exit { position: absolute; right: max(10px, env(safe-area-inset-right, 0px)); bottom: max(10px, env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; opacity: 0.25; transition: opacity 0.2s; }
 .tv-exit:hover, .tv-exit:focus-within { opacity: 1; }
 .tv-exit button { background: #1c2647; border: 1px solid var(--tv-line); color: var(--tv-fg); border-radius: 6px; padding: 6px 10px; font-size: 12px; font-stretch: 100%; }
