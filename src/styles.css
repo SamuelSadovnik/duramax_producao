@@ -40,6 +40,8 @@
   --pad: 20px;
   --gap: 16px;
   --gutter: 28px;
+  /* paleta dos gráficos: cores por série, em ordem fixa */
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -68,6 +70,7 @@
     --crit-bg: #3a171b;
     --info: #94a8f0;
     --info-bg: #1d2647;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 14px rgb(0 0 0 / 0.25);
     color-scheme: dark;
@@ -98,6 +101,7 @@
   --crit-bg: #3a171b;
   --info: #94a8f0;
   --info-bg: #1d2647;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 14px rgb(0 0 0 / 0.25);
   color-scheme: dark;
@@ -1251,12 +1255,11 @@ button.fl-stat { cursor: default; }
 .graf { position: relative; min-width: 0; }
 .graf svg { display: block; overflow: visible; }
 .graf-leg { margin: -4px 0 10px; }
-.leg-traco { width: 16px !important; height: 0 !important; border-top: 2px dashed var(--fg-2); border-radius: 0 !important; background: none !important; }
-.leg-barra { background: var(--pri-bg) !important; border: 1.5px solid var(--pri); }
+.leg-ref { width: 16px !important; height: 0 !important; border-top: 2px solid var(--fg-2); border-radius: 0 !important; background: none !important; }
 .leg-linha { width: 16px !important; height: 3px !important; border-radius: 2px !important; }
-.leg-linha.ef { background: var(--pri); }
-.leg-linha.pz { background: var(--ok); }
-.g-grade { stroke: var(--line); stroke-dasharray: 2 4; }
+.leg-linha.ef { background: var(--s1); }
+.leg-linha.pz { background: var(--s2); }
+.g-grade { stroke: var(--line); stroke-width: 1; }
 .g-base { stroke: var(--line-2); }
 .g-eixo { fill: var(--muted); font-size: 11px; font-family: var(--f-ui); font-variant-numeric: tabular-nums; }
 .g-eixo.peq { font-size: 10px; }
@@ -1265,15 +1268,15 @@ button.fl-stat { cursor: default; }
 .g-valor.ef { fill: var(--brand-ink); font-weight: 750; }
 .g-hit { fill: transparent; }
 g:hover > .g-hit { fill: var(--surface-sub); }
-.g-media { stroke: var(--fg-2); stroke-width: 1.5; stroke-dasharray: 6 5; opacity: 0.7; }
-.g-barra-sem { fill: var(--pri-bg); stroke: color-mix(in srgb, var(--pri) 45%, transparent); stroke-width: 1; }
-.g-barra-sem.atual { fill: color-mix(in srgb, var(--pri-bg) 60%, transparent); stroke-dasharray: 4 3; }
-.g-linha { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
-.g-linha.ef { stroke: var(--pri); }
-.g-linha.pz { stroke: var(--ok); }
+/* linha de referência (média, meta): sólida e discreta */
+.g-media, .g-ref { stroke: var(--fg-2); stroke-width: 1.5; opacity: 0.55; }
+.g-linha { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.g-linha.ef { stroke: var(--s1); }
+.g-linha.pz { stroke: var(--s2); }
 .g-ponto { stroke: var(--surface); stroke-width: 2; }
-.g-ponto.ef { fill: var(--pri); }
-.g-ponto.pz { fill: var(--ok); }
+.g-ponto.ef { fill: var(--s1); }
+.g-ponto.pz { fill: var(--s2); }
+.g-valor.forte { fill: var(--fg); font-size: 11.5px; font-weight: 700; }
 :root .g-linha.ef, :root .g-ponto.ef { stroke-opacity: 1; }
 
 .cart { display: flex; flex-direction: column; gap: 14px; }

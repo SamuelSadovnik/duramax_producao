@@ -30,10 +30,16 @@ const PERIODOS: { k: PeriodoK; l: string; ant: string }[] = [
 ];
 
 /** Uma cor fixa por linha de produto, igual em todos os gráficos. */
-const CORES: Record<string, string> = { '600': 'var(--pri)', '610': '#2a9d8f', '400': '#e2a03f', '800': '#8a63c9', '200': '#d7343a' };
-const EXTRAS = ['#5b8def', '#c9577e', '#7f8c3a', '#8a93ad'];
-const corLinha = (l: string) => CORES[l] ?? EXTRAS[[...l].reduce((s, c) => s + c.charCodeAt(0), 0) % EXTRAS.length];
-const ordemLinhas = (ls: string[]) => [...new Set(ls)].sort((a, b) => (a in LINHAS ? 0 : 1) - (b in LINHAS ? 0 : 1) || a.localeCompare(b));
+// Cor fixa por linha de produto (a cor acompanha a linha, nunca a posição no gráfico).
+// Paleta categórica validada para daltonismo, na ordem em que as linhas são empilhadas.
+const ORDEM_LINHAS = ['600', '610', '800', '400', '200'];
+const EXTRAS = ['var(--s6)', 'var(--s7)', 'var(--s8)'];
+const corLinha = (l: string) => {
+  const i = ORDEM_LINHAS.indexOf(l);
+  return i >= 0 ? `var(--s${i + 1})` : EXTRAS[[...l].reduce((s, c) => s + c.charCodeAt(0), 0) % EXTRAS.length];
+};
+const posLinha = (l: string) => (ORDEM_LINHAS.includes(l) ? ORDEM_LINHAS.indexOf(l) : 99);
+const ordemLinhas = (ls: string[]) => [...new Set(ls)].sort((a, b) => posLinha(a) - posLinha(b) || a.localeCompare(b));
 
 /** Largura real do elemento: os gráficos são desenhados no tamanho da tela, sem esticar texto. */
 function useLargura<T extends HTMLElement>() {
@@ -184,8 +190,8 @@ export function DashboardView() {
 
       <section className="panel">
         <div className="panel-head">
-          <h2>Evolução semanal</h2>
-          <span className="sp nota">últimas 8 semanas · semana de segunda a domingo</span>
+          <h2>Eficiência e entregas no prazo por semana</h2>
+          <span className="sp nota">últimas 8 semanas · segunda a domingo</span>
         </div>
         <GraficoSemanas semanas={d.semanas} />
       </section>
@@ -480,14 +486,15 @@ function GraficoDias({ serie }: { serie: ReturnType<typeof volumePorDia> }) {
   const iw = Math.max(0, W - M.e - M.d);
   const ih = H - M.t - M.b;
   const bw = iw / serie.length;
-  const larg = Math.min(34, bw * 0.62);
+  const larg = Math.min(24, bw * 0.6);
   const y = (v: number) => M.t + ih - (v / topo) * ih;
   const hoje = new Date();
+  const iMax = serie.reduce((m, s, i) => (s.total > serie[m].total ? i : m), 0);
   return (
     <div className="graf" ref={ref}>
       <div className="legend graf-leg">
         {linhas.map((l) => <span key={l}><i style={{ background: corLinha(l) }} />{nomeLinha(l)}</span>)}
-        {media > 0 && <span><i className="leg-traco" />média {fmtVol(Math.round(media))}/dia</span>}
+        {media > 0 && <span><i className="leg-ref" />média {fmtVol(Math.round(media))} por dia com produção</span>}
       </div>
       {W > 0 && (
         <svg width={W} height={H} role="img" aria-label="Litros produzidos por dia útil, por linha de produto">
@@ -529,7 +536,7 @@ function GraficoDias({ serie }: { serie: ReturnType<typeof volumePorDia> }) {
                     <rect key={l} x={x} y={y0 + 1} width={larg} height={Math.max(0, h - 1)} fill={corLinha(l)} />
                   );
                 })}
-                {s.total > 0 && bw >= 30 && <text x={cx} y={y(s.total) - 6} textAnchor="middle" className="g-valor">{litros(s.total)}</text>}
+                {s.total > 0 && (i === iMax || ehHoje) && <text x={cx} y={y(s.total) - 7} textAnchor="middle" className="g-valor">{litros(s.total)}</text>}
                 {bw >= 34 && <text x={cx} y={H - 22} textAnchor="middle" className={`g-eixo${ehHoje ? ' forte' : ''}`}>{diaSemana(s.d)}</text>}
                 {(bw >= 34 || ehHoje || (serie.length - 1 - i) % (bw >= 20 ? 2 : 3) === 0) && (
                   <text x={cx} y={H - (bw >= 34 ? 8 : 16)} textAnchor="middle" className={`g-eixo peq${ehHoje ? ' forte' : ''}`}>{ehHoje ? 'hoje' : bw >= 34 ? dataCurta(s.d) : dataCurta(s.d).slice(0, 5)}</text>
@@ -544,82 +551,93 @@ function GraficoDias({ serie }: { serie: ReturnType<typeof volumePorDia> }) {
   );
 }
 
+/** Eficiência e entregas no prazo por semana: as duas em %, num eixo só, com a meta de 100% marcada. */
 function GraficoSemanas({ semanas }: { semanas: ReturnType<typeof evolucaoSemanal> }) {
   const [ref, W] = useLargura<HTMLDivElement>();
   const tip = useTip();
-  const H = 250;
-  const M = { e: 46, d: 46, t: 26, b: 34 };
+  const H = 240;
+  const M = { e: 44, d: 64, t: 18, b: 30 };
   const iw = Math.max(0, W - M.e - M.d);
   const ih = H - M.t - M.b;
-  // eixo de % em passos de 25, sempre passando por 100% (a meta)
-  const topoP = Math.max(125, Math.ceil(Math.max(0, ...semanas.map((s) => s.eficiencia ?? 0), ...semanas.map((s) => s.pctPrazo ?? 0)) / 25) * 25);
+  const valores = semanas.flatMap((s) => [s.eficiencia, s.pctPrazo]).filter((v): v is number => v !== null);
+  const topo = Math.max(125, Math.ceil(Math.max(0, ...valores) / 25) * 25);
+  // o eixo começa perto do menor valor, para as linhas não ficarem espremidas no alto
+  const base = Math.max(0, Math.min(75, Math.floor((Math.min(100, ...valores) - 10) / 25) * 25));
+  const passo = topo - base <= 100 ? 25 : 50;
+  const ticks: number[] = [];
+  for (let t = base; t <= topo; t += passo) ticks.push(t);
   const bw = iw / semanas.length;
-  const larg = Math.min(44, bw * 0.5);
-  const yV = (v: number) => M.t + ih - (v / (topoV || 1)) * ih;
-  const yP = (v: number) => M.t + ih - (v / topoP) * ih;
   const cx = (i: number) => M.e + i * bw + bw / 2;
-  const linha = (k: 'eficiencia' | 'pctPrazo') => {
-    const pts = semanas.map((s, i) => (s[k] === null ? null : [cx(i), yP(s[k]!)] as const)).filter((p): p is readonly [number, number] => !!p);
+  const y = (v: number) => M.t + ih - ((Math.max(base, v) - base) / (topo - base)) * ih;
+  const series = [
+    { k: 'eficiencia' as const, nome: 'Eficiência', cls: 'ef' },
+    { k: 'pctPrazo' as const, nome: 'Entregas no prazo', cls: 'pz' },
+  ];
+  const caminho = (k: 'eficiencia' | 'pctPrazo') => {
+    const pts = semanas.map((s, i) => (s[k] === null ? null : ([cx(i), y(s[k]!)] as const))).filter((p): p is readonly [number, number] => !!p);
     return pts.length > 1 ? pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') : '';
   };
-  const ticksP: number[] = [];
-  const passoP = topoP <= 150 ? 25 : 50;
-  for (let t = 0; t <= topoP; t += passoP) ticksP.push(t);
-  // volume usa as mesmas linhas de grade, com valores redondos
-  const nTicks = ticksP.length - 1;
-  const passoV = passoBonito(Math.max(1, ...semanas.map((s) => s.volume)), nTicks);
-  const topoV = passoV * nTicks;
+  const ultimo = (k: 'eficiencia' | 'pctPrazo') => {
+    for (let i = semanas.length - 1; i >= 0; i--) if (semanas[i][k] !== null) return i;
+    return -1;
+  };
+  const vazio = !valores.length;
   return (
     <div className="graf" ref={ref}>
       <div className="legend graf-leg">
-        <span><i className="leg-barra" />Volume produzido (L)</span>
-        <span><i className="leg-linha ef" />Eficiência</span>
-        <span><i className="leg-linha pz" />Entregas no prazo</span>
-        <span><i className="leg-traco" />Meta 100%</span>
+        {series.map((sr) => <span key={sr.k}><i className={`leg-linha ${sr.cls}`} />{sr.nome}</span>)}
+        <span><i className="leg-ref" />Meta 100%</span>
       </div>
-      {W > 0 && (
-        <svg width={W} height={H} role="img" aria-label="Volume, eficiência e entregas no prazo por semana">
-          {ticksP.map((t, k) => (
+      {vazio ? (
+        <Vazio compacto icone="grafico" titulo="Ainda sem semanas com OPs concluídas" />
+      ) : W > 0 && (
+        <svg width={W} height={H} role="img" aria-label="Eficiência e entregas no prazo por semana, em porcentagem">
+          {ticks.map((t) => (
             <g key={t}>
-              <line x1={M.e} x2={W - M.d} y1={yP(t)} y2={yP(t)} className={k ? 'g-grade' : 'g-base'} />
-              <text x={W - M.d + 8} y={yP(t) + 4} className="g-eixo">{nf(t)}%</text>
-              <text x={M.e - 8} y={yP(t) + 4} textAnchor="end" className="g-eixo">{litros(passoV * k)}</text>
+              <line x1={M.e} x2={W - M.d} y1={y(t)} y2={y(t)} className={t !== base ? 'g-grade' : 'g-base'} />
+              <text x={M.e - 8} y={y(t) + 4} textAnchor="end" className="g-eixo">{nf(t)}%</text>
             </g>
           ))}
-          <line x1={M.e} x2={W - M.d} y1={yP(100)} y2={yP(100)} className="g-media" />
+          <line x1={M.e} x2={W - M.d} y1={y(100)} y2={y(100)} className="g-ref" />
+          <text x={W - M.d + 8} y={y(100) + 4} className="g-eixo forte">meta</text>
           {semanas.map((s, i) => (
             <g
               key={i}
               {...tip.bind(
                 <>
                   <b>Semana de {dataCurta(s.inicio)}{s.atual ? ' (atual)' : ''}</b>
-                  {fmtVol(s.volume)} em {s.nOps} OP{s.nOps === 1 ? '' : 's'}
                   <div>Eficiência: {pct(s.eficiencia)}</div>
-                  <div>Entregas no prazo: {pct(s.pctPrazo)} ({s.noPrazo}/{s.pedidosProntos})</div>
-                  <div>Tempo perdido: {fmtDur(s.perdidoMin)}</div>
+                  <div>Entregas no prazo: {pct(s.pctPrazo)} ({s.noPrazo} de {s.pedidosProntos})</div>
+                  <div>{fmtVol(s.volume)} em {s.nOps} OP{s.nOps === 1 ? '' : 's'} · {fmtDur(s.perdidoMin)} perdidos</div>
                 </>,
               )}
             >
               <rect x={M.e + i * bw} y={M.t} width={bw} height={ih} className="g-hit" />
-              {s.volume > 0 && <path d={barraTopo(cx(i) - larg / 2, yV(s.volume), larg, yV(0) - yV(s.volume), 5)} className={`g-barra-sem${s.atual ? ' atual' : ''}`} />}
               {(s.atual || bw >= 52 || (semanas.length - 1 - i) % 2 === 0) && (
-                <text x={cx(i)} y={H - 12} textAnchor="middle" className={`g-eixo${s.atual ? ' forte' : ''}`}>{s.atual ? (bw >= 70 ? 'esta semana' : 'atual') : dataCurta(s.inicio)}</text>
+                <text x={cx(i)} y={H - 10} textAnchor="middle" className={`g-eixo${s.atual ? ' forte' : ''}`}>{s.atual ? (bw >= 70 ? 'esta semana' : 'atual') : dataCurta(s.inicio)}</text>
               )}
             </g>
           ))}
-          <path d={linha('pctPrazo')} className="g-linha pz" />
-          <path d={linha('eficiencia')} className="g-linha ef" />
-          {semanas.map((s, i) => (
-            <g key={i} pointerEvents="none">
-              {s.pctPrazo !== null && <circle cx={cx(i)} cy={yP(s.pctPrazo)} r={4} className="g-ponto pz" />}
-              {s.eficiencia !== null && (
-                <>
-                  <circle cx={cx(i)} cy={yP(s.eficiencia)} r={4.5} className="g-ponto ef" />
-                  {bw >= 54 && <text x={cx(i)} y={yP(s.eficiencia) - 10} textAnchor="middle" className="g-valor ef">{nf(s.eficiencia)}%</text>}
-                </>
-              )}
-            </g>
-          ))}
+          {series.map((sr) => <path key={sr.k} d={caminho(sr.k)} className={`g-linha ${sr.cls}`} pointerEvents="none" />)}
+          {series.map((sr) =>
+            semanas.map((s, i) =>
+              s[sr.k] === null ? null : <circle key={`${sr.k}${i}`} cx={cx(i)} cy={y(s[sr.k]!)} r={4} className={`g-ponto ${sr.cls}`} pointerEvents="none" />,
+            ),
+          )}
+          {/* número só no último ponto de cada linha */}
+          {series.map((sr) => {
+            const i = ultimo(sr.k);
+            if (i < 0) return null;
+            const outra = series.find((o) => o.k !== sr.k)!;
+            const vo = semanas[i][outra.k];
+            const v = semanas[i][sr.k]!;
+            const acima = vo === null || v >= vo;
+            return (
+              <text key={sr.k} x={cx(i)} y={y(v) + (acima ? -10 : 18)} textAnchor="middle" className="g-valor forte" pointerEvents="none">
+                {nf(v)}%
+              </text>
+            );
+          })}
         </svg>
       )}
       {tip.el}
