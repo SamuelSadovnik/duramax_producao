@@ -7,6 +7,7 @@ import { prazoDoPedido, situacaoPrazo, statusPedido } from '../shared/engine';
 import {
   acimaDaTolerancia,
   carteira,
+  tempoSuspeito,
   evolucaoSemanal,
   indicadores,
   intervalos,
@@ -33,7 +34,8 @@ const PERIODOS: { k: PeriodoK; l: string; ant: string }[] = [
 
 // Cor fixa por linha de produto (a cor acompanha a linha em todos os gráficos).
 const ORDEM_LINHAS = ['600', '610', '800', '400', '200'];
-const CORES_LINHA = ['#7b93d6', '#ef6a5a', '#3ccf8e', '#f2b84b', '#c47fd6', '#4fc3d9', '#e88fb0', '#9aa3b8'];
+// paleta dos gráficos do sistema (testada para daltonismo), nas duas versões, clara e escura
+const CORES_LINHA = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
 const corLinha = (l: string) => {
   const i = ORDEM_LINHAS.indexOf(l);
   return CORES_LINHA[i >= 0 ? i : 5 + ([...l].reduce((s, c) => s + c.charCodeAt(0), 0) % 3)];
@@ -131,6 +133,7 @@ export function DashboardView() {
   const lentos = useMemo(() => {
     const m = new Map<string, { padrao: number; real: number; n: number }>();
     for (const o of d.ops) {
+      if (tempoSuspeito(o)) continue;
       const v = m.get(o.produtoId) ?? { padrao: 0, real: 0, n: 0 };
       v.padrao += o.tempoPadraoMin;
       v.real += o.realMin ?? 0;
@@ -185,12 +188,12 @@ export function DashboardView() {
 
   return (
     <main className="page dash bi">
-      <div className="bi-topo">
+      <div className="page-head">
         <div>
-          <div className="bi-eyebrow">Painel de operação · produção</div>
-          <h1>Desempenho</h1>
+          <h1>Desempenho da produção</h1>
+          <p>Entregas, volume, eficiência e perdas. Os indicadores comparam com o período anterior de mesmo tamanho.</p>
         </div>
-        <div className="bi-filtros">
+        <div className="acts">
           <select id="dash-linha" className="select" value={linha} onChange={(ev) => setLinha(ev.target.value)} aria-label="Linha de produto">
             <option value="">Todas as linhas</option>
             {Object.keys(LINHAS).map((l) => <option key={l} value={l}>{nomeLinha(l)}</option>)}
@@ -213,7 +216,7 @@ export function DashboardView() {
         />
         <Kpi titulo="Lead time" valor={dias(a.leadTimeDias)} unidade={a.leadTimeDias === null ? '' : 'dias úteis'} sub="da entrada no sistema até ficar pronto" delta={b && a.leadTimeDias !== null && b.leadTimeDias !== null ? { v: a.leadTimeDias - b.leadTimeDias, txt: `${nf(Math.abs(a.leadTimeDias - b.leadTimeDias), 1)} dia`, bom: 'cair' } : null} ant={per.ant} />
         <Kpi titulo="Volume produzido" valor={litros(a.volume)} unidade="L" sub={`${a.nOps} lote${a.nOps === 1 ? '' : 's'} concluído${a.nOps === 1 ? '' : 's'}`} delta={b && b.volume ? { v: a.volume - b.volume, txt: `${nf(Math.abs((a.volume / b.volume - 1) * 100), 1)}%`, bom: 'subir' } : null} ant={per.ant} />
-        <Kpi titulo="Eficiência" valor={pct(a.eficiencia)} sub="tempo padrão ÷ tempo real das OPs" delta={b && a.eficiencia !== null && b.eficiencia !== null ? { v: a.eficiencia - b.eficiencia, txt: `${nf(Math.abs(a.eficiencia - b.eficiencia), 1)} p.p.`, bom: 'subir' } : null} ant={per.ant} />
+        <Kpi titulo="Eficiência" valor={pct(a.eficiencia)} sub={a.nSuspeitas ? `padrão ÷ real · ${a.nSuspeitas} OP${a.nSuspeitas === 1 ? '' : 's'} com tempo curto demais fora da conta` : 'tempo padrão ÷ tempo real das OPs'} delta={b && a.eficiencia !== null && b.eficiencia !== null ? { v: a.eficiencia - b.eficiencia, txt: `${nf(Math.abs(a.eficiencia - b.eficiencia), 1)} p.p.`, bom: 'subir' } : null} ant={per.ant} />
         <Kpi titulo="Tempo perdido" valor={a.perdidoMin ? fmtDur(a.perdidoMin) : '0'} sub={`acima do padrão em ${a.nAcima} de ${a.nOps} OPs`} delta={b ? { v: a.perdidoMin - b.perdidoMin, txt: fmtDur(Math.abs(a.perdidoMin - b.perdidoMin)), bom: 'cair' } : null} ant={per.ant} />
         <Kpi titulo="Tempo no PCP" valor={horas(a.pcpHoras)} sub="da entrada até a liberação (expediente)" delta={b && a.pcpHoras !== null && b.pcpHoras !== null ? { v: a.pcpHoras - b.pcpHoras, txt: horas(Math.abs(a.pcpHoras - b.pcpHoras)), bom: 'cair' } : null} ant={per.ant} />
       </div>
