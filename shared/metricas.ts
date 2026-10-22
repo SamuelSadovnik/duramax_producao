@@ -36,6 +36,11 @@ const pedidoDaLinha = (p: Pedido, linha: string) => !linha || p.itens.some((i) =
 export const toleranciaDe = (e: Estado) => 1 + e.config.toleranciaPct / 100;
 export const acimaDaTolerancia = (e: Estado, o: OP) => (o.realMin ?? 0) > o.tempoPadraoMin * toleranciaDe(e);
 export const perdaDe = (o: OP) => Math.max(0, (o.realMin ?? 0) - o.tempoPadraoMin);
+/**
+ * OP com tempo real menor que 1/4 do padrão quase sempre é registro errado (iniciada e finalizada
+ * logo em seguida). Ela continua contando no volume, mas fica fora do cálculo de eficiência.
+ */
+export const tempoSuspeito = (o: OP) => (o.realMin ?? 0) < o.tempoPadraoMin * 0.25;
 
 export function opsConcluidas(e: Estado, i: Intervalo, linha = ''): OP[] {
   return e.ops
@@ -55,13 +60,16 @@ export interface Indicadores {
   pctPrazo: number | null;
   leadTimeDias: number | null;
   pcpHoras: number | null;
+  /** OPs fora da eficiência por tempo real curto demais */
+  nSuspeitas: number;
 }
 
 export function indicadores(e: Estado, i: Intervalo, linha = ''): Indicadores {
   const fer = e.config.feriados;
   const ops = opsConcluidas(e, i, linha);
-  const padrao = ops.reduce((s, o) => s + o.tempoPadraoMin, 0);
-  const real = ops.reduce((s, o) => s + (o.realMin ?? 0), 0);
+  const validas = ops.filter((o) => !tempoSuspeito(o));
+  const padrao = validas.reduce((s, o) => s + o.tempoPadraoMin, 0);
+  const real = validas.reduce((s, o) => s + (o.realMin ?? 0), 0);
   const acima = ops.filter((o) => acimaDaTolerancia(e, o));
   const prontos = e.pedidos.filter((p) => dentro(p.prontoEm, i) && pedidoDaLinha(p, linha));
   const noPrazo = prontos.filter((p) => new Date(p.prontoEm!) <= fimDoDia(prazoDoPedido(e, p))).length;
@@ -81,6 +89,7 @@ export function indicadores(e: Estado, i: Intervalo, linha = ''): Indicadores {
     pctPrazo: prontos.length ? (noPrazo / prontos.length) * 100 : null,
     leadTimeDias: media(lead),
     pcpHoras: media(pcp),
+    nSuspeitas: ops.length - validas.length,
   };
 }
 
