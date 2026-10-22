@@ -426,6 +426,41 @@ table.t { width: 100%; border-collapse: collapse; font-size: 13px; table-layout:
 }
 .drawer-head { padding: 16px var(--pad); background: var(--surface); border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: flex-start; }
 .drawer.largo { width: min(1120px, 100%); }
+/* ficha do pedido, versão enxuta */
+.ped-faixa { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ped-faixa-txt { flex: 1 1 240px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ped-faixa-txt b { font-size: 22px; font-weight: 750; line-height: 1.2; }
+.ped-faixa-prazo { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); margin-top: 4px; flex-wrap: wrap; }
+.ped-info { margin: -4px 2px 0; display: flex; flex-wrap: wrap; gap: 4px 0; font-size: 13px; color: var(--fg-2); }
+.ped-info span + span::before { content: '·'; margin: 0 8px; color: var(--muted); }
+.ped-prods { list-style: none; margin: 0; padding: 0; }
+.ped-prods li { display: grid; grid-template-columns: minmax(0, 1fr) 84px minmax(0, 0.9fr); gap: 6px 14px; align-items: center; padding: 11px var(--pad); border-bottom: 1px solid var(--line); }
+.ped-prods li:last-child { border-bottom: 0; }
+.ped-prod-nome { display: flex; flex-direction: column; min-width: 0; }
+.ped-prod-nome b { font-weight: 600; font-size: 13.5px; }
+.ped-prod-nome .mono { font-size: 11.5px; color: var(--muted); }
+.ped-prod-vol { text-align: right; font-weight: 650; }
+.ped-prod-st { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.ped-prod-st .chip { white-space: normal; text-align: left; }
+.ped-hist { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 0 var(--pad); }
+.ped-hist summary { cursor: pointer; font-weight: 650; font-size: 13.5px; min-height: 46px; display: flex; align-items: center; gap: 6px; list-style: none; }
+.ped-hist summary::-webkit-details-marker { display: none; }
+.ped-hist summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform 0.15s; }
+.ped-hist[open] summary::after { transform: rotate(180deg); }
+.ped-hist .timeline { padding: 4px 0 14px; }
+@media (max-width: 767px) {
+  .ped-prods li { grid-template-columns: minmax(0, 1fr) auto; }
+  .ped-prod-st { grid-column: 1 / -1; justify-content: flex-start; }
+}
+/* análise do PCP: resumo numa linha só */
+.pcp-barra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px var(--pad); }
+.pcp-barra-ic { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.pcp-barra.falta .pcp-barra-ic { background: var(--warn-bg); color: var(--warn); }
+.pcp-barra.pronta .pcp-barra-ic { background: var(--ok-bg); color: var(--ok); }
+.pcp-barra-txt { flex: 1 1 260px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pcp-barra-txt b { font-size: 15.5px; font-weight: 700; }
+.pcp-barra-txt span { font-size: 12.5px; color: var(--fg-2); }
+.pcp-tit { font-size: 14px; font-weight: 700; }
 .drawer-abas { margin-top: 12px; }
 .drawer-head h2 { font-size: 21px; font-stretch: 82%; font-weight: 750; margin-top: 4px; }
 .drawer-body { overflow-y: auto; padding: 18px var(--pad) 40px; display: flex; flex-direction: column; gap: 16px; }

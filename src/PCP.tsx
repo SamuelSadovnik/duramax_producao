@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { pode, useApp } from './store';
 import { Icon } from './ui';
-import { calcularAgenda, liberarPedido, planejar, prazoDoPedido, produtosSemParametro, situacaoPrazo, temParametros, type LinhaPlano } from '../shared/engine';
+import { calcularAgenda, liberarPedido, planejar, produtosSemParametro, situacaoPrazo, temParametros, type LinhaPlano } from '../shared/engine';
 import { CamposParam } from './ParamProduto';
-import { dataISOparaBR, fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
+import { fmtDur, fmtVol, nf, quando } from '../shared/fmt';
 import type { Decisao, Pedido } from '../shared/types';
 import { nomeLinha } from '../shared/catalog';
 import { api } from './api';
@@ -58,7 +58,6 @@ function Analise({ p, onLiberar, somenteVer }: { p: Pedido; onLiberar: () => Pro
   const pendentes = p.itens.filter((i) => i.decisao === 'pendente').length;
   const decididos = p.itens.length - pendentes;
   const novasOps = plano.reduce((s, l) => s + l.novas.length, 0);
-  const tempo = plano.reduce((s, l) => s + l.tempoMin, 0);
   const volOP = plano.reduce((s, l) => s + l.necessidade, 0);
   const volEst = p.itens.filter((i) => i.decisao === 'estoque').reduce((s, i) => s + i.volume, 0);
   const semParam = produtosSemParametro(e, p);
@@ -83,56 +82,38 @@ function Analise({ p, onLiberar, somenteVer }: { p: Pedido; onLiberar: () => Pro
 
   return (
     <section className="pcp2-det" aria-label={`Pedido ${p.numero}`}>
-      <div className="panel pcp2-cab">
-        <div className="pcp2-cab-l">
-          <div className="pcp2-meta">
-            <span>{titulo(p.cidade)}/{p.uf}</span>
-            <span>{titulo(p.vendedor)}</span>
-            <span>entrou {quando(new Date(p.importadoEm), agora)}</span>
-            <span>prazo {dataISOparaBR(prazoDoPedido(e, p))}</span>
-          </div>
-        </div>
-        <div className="pcp2-cab-a">
-          {!somenteVer && (
-            <>
-              <button className="btn" disabled={ocupado} onClick={() => decidir(todos, 'estoque')}><Icon n="box" s={15} /> Tudo do estoque</button>
-              <button className="btn" disabled={ocupado} onClick={() => decidir(todos, 'op')}><Icon n="flask" s={15} /> Tudo vira OP</button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="panel pcp2-resumo">
-        <div className="rs">
-          <span className="rs-l">Decididos</span>
-          <b className="num">{decididos}<small>/{p.itens.length}</small></b>
-          <div className="bar" aria-hidden="true"><i className="done" style={{ width: `${(decididos / p.itens.length) * 100}%` }} /></div>
-        </div>
-        <div className="rs"><span className="rs-l">A produzir</span><b className="num">{fmtVol(volOP)}</b><span className="rs-s">{novasOps} OP{novasOps === 1 ? '' : 's'} nova{novasOps === 1 ? '' : 's'}</span></div>
-        <div className="rs"><span className="rs-l">Do estoque</span><b className="num">{fmtVol(volEst)}</b><span className="rs-s">{p.itens.filter((i) => i.decisao === 'estoque').length} itens</span></div>
-        <div className="rs"><span className="rs-l">Produção</span><b className="num">{tempo ? fmtDur(tempo) : '—'}</b><span className="rs-s">tempo padrão somado</span></div>
-        <div className="rs rs-fim">
-          <span className="rs-l">Se liberar agora</span>
-          <b className="num">{simul ? (simul.fim ? quando(simul.fim, agora) : 'na hora') : '—'}</b>
-          {/* a mesma linha mostra o prazo ou o que falta, para nada mudar de lugar */}
-          <span className="rs-st">
-            {bloqueio ? (
-              <span className="chip warn"><Icon n="info" s={12} /> {bloqueio}</span>
-            ) : simul && simul.prazo.tipo !== 'sem' ? (
-              <span className={`chip ${simul.prazo.tipo === 'ok' ? 'ok' : simul.prazo.tipo === 'risco' ? 'warn' : 'crit'}`}>{simul.prazo.texto}</span>
-            ) : (
-              <span className="chip ok"><Icon n="check" s={12} w={2.6} /> pronto para liberar</span>
-            )}
+      {/* uma linha só: o que falta (ou que está pronto), o resumo e o botão de liberar */}
+      <div className={`panel pcp-barra${bloqueio ? ' falta' : ' pronta'}`}>
+        <span className="pcp-barra-ic"><Icon n={bloqueio ? 'alert' : 'check'} s={18} w={bloqueio ? 2 : 2.6} /></span>
+        <div className="pcp-barra-txt">
+          <b>{bloqueio ? bloqueio.charAt(0).toUpperCase() + bloqueio.slice(1) : 'Pronto para liberar'}</b>
+          <span>
+            {decididos} de {p.itens.length} itens decididos
+            {volOP > 0 && <> · {fmtVol(volOP)} a produzir em {novasOps} OP{novasOps === 1 ? '' : 's'}</>}
+            {volEst > 0 && <> · {fmtVol(volEst)} do estoque</>}
+            {simul && <> · fica pronto {simul.fim ? quando(simul.fim, agora) : 'na hora'}</>}
           </span>
         </div>
+        {simul && simul.prazo.tipo !== 'sem' && (
+          <span className={`chip ${simul.prazo.tipo === 'ok' ? 'ok' : simul.prazo.tipo === 'risco' ? 'warn' : 'crit'}`}>{simul.prazo.texto}</span>
+        )}
         {!somenteVer && (
-          <button className="btn pri grande pcp2-liberar" disabled={!!bloqueio || ocupado} onClick={liberar}>
+          <button className="btn pri grande" disabled={!!bloqueio || ocupado} onClick={liberar}>
             <Icon n="check" s={17} w={2.4} /> Liberar para produção
           </button>
         )}
       </div>
 
       <div className="panel flush">
+        <div className="toolbar">
+          <b className="pcp-tit">Produtos do pedido <span className="muted">· {grupos.length}</span></b>
+          {!somenteVer && (
+            <span className="sp linha-ctl">
+              <button className="btn sm" disabled={ocupado} onClick={() => decidir(todos, 'estoque')}><Icon n="box" s={14} /> Tudo do estoque</button>
+              <button className="btn sm" disabled={ocupado} onClick={() => decidir(todos, 'op')}><Icon n="flask" s={14} /> Tudo vira OP</button>
+            </span>
+          )}
+        </div>
         <div className="scroll-x">
           <table className="t pcp2-t cartoes-tab">
             <thead>

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './store';
-import { Icon, Modal, PrazoChip, ProgressoOPs, STATUS_PED, estimativaTexto, nomeOP } from './ui';
+import { Icon, Modal, PrazoChip, ProgressoOPs, STATUS_PED, estimativaTexto } from './ui';
 import { opsDoPedido, prazoDoPedido, statusPedido, volumePedido, situacaoPrazo } from '../shared/engine';
-import { dataISOparaBR, fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
+import { dataISOparaBR, fmtVol, nf, quando, titulo } from '../shared/fmt';
 import type { Estado, Pedido, StatusPedido } from '../shared/types';
 import { textosDoPdf } from './pdf';
 import { lerPedido, type PedidoLido } from '../shared/parse';
@@ -483,97 +483,72 @@ export function DetalhePedido() {
           </div>
         ) : (
         <div className="drawer-body">
-          <div className="panel resumo-ped">
-            <div style={{ flex: '1 1 220px' }}>
-              <div className="eyebrow">{st === 'pronto' || st === 'expedido' ? 'Situação' : 'Estimativa de liberação p/ expedição'}</div>
-              <div className="num grande">
-                {estimativaTexto(e, p, est, agora)}
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                <PrazoChip p={p} />
-                <span className="muted" style={{ fontSize: 12 }}>Prazo: {dataISOparaBR(prazoDoPedido(e, p))} · {e.config.prazoDiasUteis} dias úteis desde a entrada</span>
-              </div>
+          {/* faixa principal: quando fica pronto, o prazo e a ação do momento */}
+          <div className="panel ped-faixa">
+            <div className="ped-faixa-txt">
+              <span className="eyebrow">{st === 'pronto' || st === 'expedido' ? 'Situação' : 'Fica pronto'}</span>
+              <b className="num">{estimativaTexto(e, p, est, agora)}</b>
+              <span className="ped-faixa-prazo">
+                prazo {dataISOparaBR(prazoDoPedido(e, p)).slice(0, 5)}
+                {st !== 'expedido' && <PrazoChip p={p} />}
+              </span>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {podeEditar && ['pcp', 'fila', 'producao'].includes(st) && (
-                <button className="btn" onClick={moverTopo}>
-                  <Icon n="top" s={15} /> Prioridade máxima
-                </button>
-              )}
-              {podeEditar && st === 'pronto' && (
-                <button className="btn ok" onClick={expedir}>
-                  <Icon n="truck" s={16} /> Marcar como expedido
-                </button>
-              )}
-            </div>
+            {podeEditar && ['pcp', 'fila', 'producao'].includes(st) && (
+              <button className="btn" onClick={moverTopo}><Icon n="top" s={15} /> Prioridade máxima</button>
+            )}
+            {podeEditar && st === 'pronto' && (
+              <button className="btn ok grande" onClick={expedir}><Icon n="truck" s={16} /> Marcar como expedido</button>
+            )}
           </div>
 
-          <dl className="kv">
-            <div><dt>Cidade</dt><dd>{titulo(p.cidade)}/{p.uf}</dd></div>
-            <div><dt>Vendedor</dt><dd>{titulo(p.vendedor)}</dd></div>
-            <div><dt>Transportadora</dt><dd>{titulo(p.transportadora)}</dd></div>
-            <div><dt>Emissão no ERP</dt><dd>{dataISOparaBR(p.emissao)}</dd></div>
-            <div><dt>Entrou no sistema</dt><dd>{quando(new Date(p.importadoEm), agora)}</dd></div>
-            <div><dt>Volume total</dt><dd className="num">{fmtVol(volumePedido(p))}</dd></div>
-            <div><dt>Itens</dt><dd className="num">{p.itens.length}</dd></div>
-          </dl>
+          <p className="ped-info">
+            <span>{titulo(p.cidade)}/{p.uf}</span>
+            <span>{titulo(p.vendedor)}</span>
+            <span>{titulo(p.transportadora)}</span>
+            <span>entrou {quando(new Date(p.importadoEm), agora)}</span>
+          </p>
 
-          {ops.length > 0 && (
-            <div className="panel flush">
-              <div className="panel-head"><h2>Ordens de produção</h2><span className="sp nota">{ops.filter((o) => o.status === 'concluida').length} de {ops.length} concluídas</span></div>
-              <div className="scroll-x">
-                <table className="t cartoes">
-                  <thead><tr><th>Produto / OP</th><th className="r" style={{ width: 150 }}>Deste pedido</th><th style={{ width: 180 }}>Situação</th><th style={{ width: 130 }}>Previsão / fim</th></tr></thead>
-                  <tbody>
-                    {ops.map((o) => {
-                      const pv = agenda.ops.get(o.id);
-                      const v = o.alocacoes.find((a) => a.pedidoId === p.id)!.volume;
-                      return (
-                        <tr key={o.id}>
-                          <td className="cel-tit"><span className="nome">{nomeOP(e, o)}</span><span className="sub mono">OP {o.numero}</span></td>
-                          <td className="r num nw" data-l="Deste pedido">{fmtVol(v)}<span className="muted"> / {fmtVol(o.lote)}</span></td>
-                          <td data-l="Situação">
-                            {o.status === 'concluida' ? <span className="chip ok">Concluída</span> : o.status === 'producao' ? <span className={`chip ${pv?.atrasada ? 'crit' : 'info'}`}>{pv?.atrasada ? 'Em produção · atrasada' : 'Em produção'}</span> : <span className="chip">Na fila</span>}
-                          </td>
-                          <td className="num nw" data-l="Previsão / fim">
-                            {o.status === 'concluida' ? quando(new Date(o.fim!), agora) : pv ? quando(pv.fim, agora) : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
+          {/* uma lista só: cada produto com o volume e onde ele está (estoque ou OP) */}
           <div className="panel flush">
-            <div className="panel-head"><h2>Itens por produto</h2></div>
-            <div className="scroll-x">
-              <table className="t cartoes">
-                <thead><tr><th>Produto</th><th style={{ width: 190 }}>Embalagens</th><th className="r" style={{ width: 100 }}>Volume</th><th style={{ width: 140 }}>Decisão PCP</th></tr></thead>
-                <tbody>
-                  {[...grupos].map(([pid, its]) => (
-                    <tr key={pid}>
-                      <td className="cel-tit"><span className="nome">{e.produtos[pid]?.nome ?? pid}</span><span className="sub mono">{pid}</span></td>
-                      <td className="num fg2" data-l="Embalagens">{its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}</td>
-                      <td className="r num" data-l="Volume">{fmtVol(its.reduce((s, i) => s + i.volume, 0))}</td>
-                      <td data-l="Decisão PCP">
-                        {[...new Set(its.map((i) => i.decisao))].map((d) => (
-                          <span key={d} className={`chip ${d === 'op' ? 'info' : d === 'estoque' ? 'ok' : 'warn'}`} style={{ marginRight: 4 }}>
-                            {d === 'op' ? 'Produzir' : d === 'estoque' ? 'Estoque' : 'Pendente'}
-                          </span>
-                        ))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="panel-head">
+              <h2>Produtos</h2>
+              <span className="sp nota num">{grupos.size} produto{grupos.size === 1 ? '' : 's'} · {fmtVol(volumePedido(p))}</span>
             </div>
+            <ul className="ped-prods">
+              {[...grupos].map(([pid, its]) => {
+                const decs = new Set(its.map((i) => i.decisao));
+                const opsProd = ops.filter((o) => o.produtoId === pid);
+                return (
+                  <li key={pid}>
+                    <div className="ped-prod-nome">
+                      <b>{e.produtos[pid]?.nome ?? pid}</b>
+                      <span className="mono">{its.map((i) => `${nf(i.qtde)}×${nf(i.embalagem, 1)}L`).join(' · ')}</span>
+                    </div>
+                    <span className="ped-prod-vol num">{fmtVol(its.reduce((s, i) => s + i.volume, 0))}</span>
+                    <span className="ped-prod-st">
+                      {decs.has('pendente') && <span className="chip warn">aguarda o PCP</span>}
+                      {decs.has('estoque') && <span className="chip ok"><Icon n="box" s={12} /> do estoque</span>}
+                      {decs.has('op') && !opsProd.length && <span className="chip info"><Icon n="flask" s={12} /> vai virar OP</span>}
+                      {decs.has('op') && !opsProd.length && <span className="chip info"><Icon n="flask" s={12} /> vai virar OP</span>}
+                      {opsProd.map((o) => {
+                        const pv = agenda.ops.get(o.id);
+                        return o.status === 'concluida' ? (
+                          <span key={o.id} className="chip ok"><Icon n="check" s={12} w={2.6} /> OP {o.numero} pronta {quando(new Date(o.fim!), agora)}</span>
+                        ) : o.status === 'producao' ? (
+                          <span key={o.id} className={`chip ${pv?.atrasada ? 'crit' : 'info'}`}>OP {o.numero} produzindo{pv ? ` · até ${quando(pv.fim, agora)}` : ''}</span>
+                        ) : (
+                          <span key={o.id} className="chip">OP {o.numero} na fila{pv ? ` · começa ${quando(pv.inicio, agora)}` : ''}</span>
+                        );
+                      })}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
-          <div className="panel">
-            <div className="panel-head"><h2>Histórico</h2></div>
+          <details className="ped-hist">
+            <summary>Histórico do pedido <span className="muted">({p.eventos.length})</span></summary>
             <ol className="timeline">
               {[...p.eventos].reverse().map((ev, k) => (
                 <li key={k} className={ev.tipo}>
@@ -583,7 +558,7 @@ export function DetalhePedido() {
                 </li>
               ))}
             </ol>
-          </div>
+          </details>
 
           {podeEditar && st !== 'expedido' && (
             <div>
@@ -600,7 +575,6 @@ export function DetalhePedido() {
               )}
             </div>
           )}
-          <span className="rodape-nota">Tempo total padrão das OPs: {fmtDur(ops.reduce((s, o) => s + o.tempoPadraoMin, 0))}</span>
         </div>
         )}
       </aside>
