@@ -799,8 +799,9 @@ button.fl-stat { cursor: default; }
 .time-fix label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; color: var(--fg-2); }
 .time-fix input { min-height: 40px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); }
 
+/* a TV da fábrica é um painel: continua se mexendo mesmo com animações reduzidas no Windows */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  :not(.tv, .tv *), :not(.tv, .tv *)::before, :not(.tv, .tv *)::after { animation: none !important; transition: none !important; }
 }
 /* ----------------------------------------------------------------- TV */
 .tv {
@@ -883,13 +884,14 @@ button.fl-stat { cursor: default; }
 .tv-letreiro-trilho span { padding-right: 3vw; }
 .tv-letreiro-trilho span::before { content: '●'; color: var(--tv-ok); margin-right: 0.8vw; font-size: 0.7em; vertical-align: 0.15em; }
 @keyframes tv-corre { from { transform: translateX(0); } to { transform: translateX(calc(-1 * var(--dist))); } }
-/* colunas que rolam para cima quando não cabem */
-.tv-rola { flex: 1; min-height: 0; overflow: hidden; position: relative; }
-.tv-rola.anda { mask-image: linear-gradient(180deg, transparent, #000 3%, #000 92%, transparent); }
-.tv-rola-bloco { display: flex; flex-direction: column; gap: 1.2vh; padding-bottom: 1.2vh; }
-.tv-rola.anda .tv-rola-in { animation: tv-sobe linear infinite; }
-@keyframes tv-sobe { from { transform: translateY(0); } to { transform: translateY(calc(-1 * var(--dist))); } }
-@media (prefers-reduced-motion: reduce) { .tv-rola.anda .tv-rola-in, .tv-letreiro.anda .tv-letreiro-in { animation: none !important; } .tv-rola.anda { overflow-y: auto; } }
+/* colunas em páginas que passam para o lado */
+.tv-pags { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.tv-pags-medida { position: absolute; left: 0; right: 0; top: 0; visibility: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 1.2vh; }
+.tv-pags-trilho { display: flex; height: 100%; transition: transform 0.7s cubic-bezier(0.65, 0, 0.35, 1); }
+.tv-pags-pag { flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; gap: 1.2vh; }
+.tv-pags-pontos { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 8px; }
+.tv-pags-pontos i { width: 8px; height: 8px; border-radius: 99px; background: var(--tv-line); transition: width 0.3s, background 0.3s; }
+.tv-pags-pontos i.on { width: 22px; background: var(--tv-fg); }
 .tv-exit { position: absolute; right: max(10px, env(safe-area-inset-right, 0px)); bottom: max(10px, env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; opacity: 0.25; transition: opacity 0.2s; }
 .tv-exit:hover, .tv-exit:focus-within { opacity: 1; }
 .tv-exit button { background: #1c2647; border: 1px solid var(--tv-line); color: var(--tv-fg); border-radius: 6px; padding: 6px 10px; font-size: 12px; font-stretch: 100%; }

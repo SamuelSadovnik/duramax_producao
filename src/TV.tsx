@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Children, isValidElement, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useApp, useRelogio } from './store';
 import { Icon, nomeOP } from './ui';
 import { filaOrdenada } from '../shared/engine';
@@ -7,37 +7,74 @@ import { dataCurta, diaSemanaLongo, fmtDur, fmtVol, hora, mesmoDia, quando, titu
 const logo = '/logo-h-white.png';
 
 /**
- * Lista que rola sozinha para cima quando não cabe na coluna (como painel de aeroporto).
- * Se couber, fica parada. O conteúdo é repetido para a volta ficar contínua.
+ * Lista em páginas que passam para o lado, como um carrossel: se os itens não cabem na coluna,
+ * eles são divididos em páginas do tamanho da coluna e a TV troca de página sozinha a cada poucos
+ * segundos. As bolinhas embaixo mostram em qual página está.
  */
-function Rolagem({ children, pxPorSeg = 28 }: { children: ReactNode; pxPorSeg?: number }) {
+function Paginas({ children, segundos = 8 }: { children: ReactNode; segundos?: number }) {
+  const itens = Children.toArray(children);
   const caixa = useRef<HTMLDivElement>(null);
-  const bloco = useRef<HTMLDivElement>(null);
-  const [altura, setAltura] = useState(0);
-  const [anda, setAnda] = useState(false);
+  const medida = useRef<HTMLDivElement>(null);
+  const [paginas, setPaginas] = useState<number[][]>([itens.map((_, i) => i)]);
+  const [pag, setPag] = useState(0);
+  const assinatura = itens.map((x) => (isValidElement(x) ? String(x.key) : '')).join('|');
+
+  // divide os itens em páginas conforme a altura da coluna
   useLayoutEffect(() => {
     const medir = () => {
       const c = caixa.current;
-      const b = bloco.current;
-      if (!c || !b) return;
-      const h = b.offsetHeight;
-      // só troca a velocidade quando a altura muda de verdade, para a animação não pular
-      setAltura((x) => (Math.abs(x - h) > 6 ? h : x));
-      setAnda(h > c.clientHeight + 4);
+      const m = medida.current;
+      if (!c || !m) return;
+      const alt = c.clientHeight - 22; // espaço das bolinhas
+      const gap = parseFloat(getComputedStyle(m).rowGap) || 0;
+      const filhos = [...m.children] as HTMLElement[];
+      const out: number[][] = [];
+      let atual: number[] = [];
+      let usado = 0;
+      filhos.forEach((f, i) => {
+        const h = f.offsetHeight + (atual.length ? gap : 0);
+        if (atual.length && usado + h > alt) {
+          out.push(atual);
+          atual = [];
+          usado = 0;
+        }
+        usado += atual.length ? h : f.offsetHeight;
+        atual.push(i);
+      });
+      if (atual.length) out.push(atual);
+      setPaginas((x) => (JSON.stringify(x) === JSON.stringify(out) ? x : out.length ? out : [[]]));
     };
     medir();
     const ro = new ResizeObserver(medir);
     if (caixa.current) ro.observe(caixa.current);
-    if (bloco.current) ro.observe(bloco.current);
     return () => ro.disconnect();
-  }, []);
-  const estilo = anda ? ({ '--dist': `${altura}px`, animationDuration: `${Math.max(12, altura / pxPorSeg)}s` } as CSSProperties) : undefined;
+  }, [assinatura]);
+
+  useEffect(() => {
+    if (pag >= paginas.length) setPag(0);
+  }, [paginas.length, pag]);
+  useEffect(() => {
+    if (paginas.length < 2) return;
+    const t = setInterval(() => setPag((p) => (p + 1) % paginas.length), segundos * 1000);
+    return () => clearInterval(t);
+  }, [paginas.length, segundos]);
+
+  const varias = paginas.length > 1;
   return (
-    <div className={`tv-rola${anda ? ' anda' : ''}`} ref={caixa}>
-      <div className="tv-rola-in" style={estilo}>
-        <div className="tv-rola-bloco" ref={bloco}>{children}</div>
-        {anda && <div className="tv-rola-bloco" aria-hidden="true">{children}</div>}
+    <div className="tv-pags" ref={caixa}>
+      <div className="tv-pags-medida" ref={medida} aria-hidden="true">{itens}</div>
+      <div className="tv-pags-trilho" style={{ transform: `translateX(-${Math.min(pag, paginas.length - 1) * 100}%)` }}>
+        {paginas.map((ids, k) => (
+          <div key={k} className="tv-pags-pag" aria-hidden={k !== pag || undefined}>
+            {ids.map((i) => itens[i])}
+          </div>
+        ))}
       </div>
+      {varias && (
+        <div className="tv-pags-pontos" aria-label={`Página ${pag + 1} de ${paginas.length}`}>
+          {paginas.map((_, k) => <i key={k} className={k === pag ? 'on' : ''} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -143,7 +180,7 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
       <div className="tv-cols">
         <section className="tv-col">
           <h2><i style={{ background: 'var(--tv-run)' }} />EM PRODUÇÃO<span className="n">{emProd.length}</span></h2>
-          <Rolagem>
+          <Paginas>
           {emProd.map((o) => {
             const dec = expedienteEntre(new Date(o.inicio!), agora, fer);
             const late = dec > o.tempoPadraoMin;
@@ -166,12 +203,12 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
             );
           })}
           {!emProd.length && <div className="tv-empty">Nenhuma OP em produção. Próxima: {fila[0] ? nomeOP(e, fila[0]) : '—'}</div>}
-          </Rolagem>
+          </Paginas>
         </section>
 
         <section className="tv-col">
           <h2><i style={{ background: 'var(--tv-warn)' }} />PRÓXIMAS<span className="n">{fila.length}</span></h2>
-          <Rolagem>
+          <Paginas>
           {fila.map((o, i) => {
             const pv = agenda.ops.get(o.id);
             const peds = o.alocacoes.map((a) => e.pedidos.find((p) => p.id === a.pedidoId)).filter(Boolean);
@@ -186,12 +223,12 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
             );
           })}
           {!fila.length && <div className="tv-empty">Fila vazia.</div>}
-          </Rolagem>
+          </Paginas>
         </section>
 
         <section className="tv-col">
           <h2><i style={{ background: 'var(--tv-ok)' }} />PRONTAS HOJE<span className="n">{hoje.length}</span></h2>
-          <Rolagem>
+          <Paginas>
           {hoje.map((o) => (
             <div key={o.id} className="tv-done">
               <Icon n="check" s={24} w={3} />
@@ -200,9 +237,9 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
             </div>
           ))}
           {!hoje.length && <div className="tv-empty">Nada concluído hoje ainda.</div>}
-          </Rolagem>
+          </Paginas>
           <div className="tv-sub">PEDIDOS LIBERADOS P/ EXPEDIÇÃO · {aguardandoExp.length}</div>
-          <Rolagem pxPorSeg={22}>
+          <Paginas>
           {aguardandoExp.map((p) => (
             <div key={p.id} className="tv-ped">
               <b>#{p.numero} {titulo(p.fantasia)}</b>
@@ -210,7 +247,7 @@ export function TVView({ sair, rotuloSair = 'Sair da TV' }: { sair?: () => void;
             </div>
           ))}
           {!aguardandoExp.length && <div className="tv-empty">Nenhum pedido esperando expedição.</div>}
-          </Rolagem>
+          </Paginas>
         </section>
       </div>
 
