@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './store';
 import { Icon, Modal, PrazoChip, ProgressoOPs, STATUS_PED, estimativaTexto, nomeOP } from './ui';
 import { opsDoPedido, prazoDoPedido, statusPedido, volumePedido, situacaoPrazo } from '../shared/engine';
@@ -21,9 +21,124 @@ const VAZIO_COL: Record<StatusPedido, string> = {
 };
 const ABA_COL: Record<StatusPedido, string> = { pcp: 'PCP', fila: 'Fila', producao: 'Produção', pronto: 'Pronto', expedido: 'Expedido' };
 
+/** Para onde cada coluna pode ser arrastada (o resto muda sozinho pela produção). */
+const DESTINO: Partial<Record<StatusPedido, StatusPedido>> = { pcp: 'fila', pronto: 'expedido' };
+const POR_QUE_NAO: Record<StatusPedido, string> = {
+  pcp: 'Pedido que já foi liberado não volta para o PCP.',
+  fila: 'Só pedidos aguardando o PCP vão para a fila: arraste da primeira coluna.',
+  producao: 'O pedido entra em produção sozinho quando o gerente inicia a primeira OP no chão de fábrica.',
+  pronto: 'O pedido fica pronto sozinho quando a última OP dele é finalizada.',
+  expedido: 'Só pedidos prontos podem ser marcados como expedidos.',
+};
+
+interface Arraste {
+  p: Pedido;
+  de: StatusPedido;
+  x: number;
+  y: number;
+  ox: number;
+  oy: number;
+  w: number;
+}
+
 export function PedidosView() {
-  const { e, abrirPedido, perfil } = useApp();
+  const { e, abrirPedido, perfil, executar, toast } = useApp();
   const [q, setQ] = useState('');
+  const [arraste, setArraste] = useState<Arraste | null>(null);
+  const [sobre, setSobre] = useState<StatusPedido | null>(null);
+  const arrastou = useRef(false);
+  const kanban = useRef<HTMLDivElement>(null);
+
+  const soltar = (p: Pedido, de: StatusPedido, para: StatusPedido | null) => {
+    if (!para || para === de) return;
+    if (DESTINO[de] !== para) return toast({ texto: POR_QUE_NAO[para], tipo: 'info' });
+    if (de === 'pcp') {
+      // a liberação precisa das decisões do PCP: abre a análise do pedido
+      if (!pode.decidirPCP(perfil)) return toast({ texto: 'Só o PCP libera pedidos para a produção.', tipo: 'info' });
+      return abrirPedido(p.id);
+    }
+    if (!pode.expedir(perfil)) return toast({ texto: 'Seu perfil não marca pedidos como expedidos.', tipo: 'info' });
+    executar(() => api.expedir(p.id), `Pedido #${p.numero} marcado como expedido.`);
+  };
+
+  /**
+   * Arrastar cartão: com o mouse começa ao mover alguns pixels; no tablet, segurando o dedo
+   * parado por um instante (para não atrapalhar a rolagem da tela).
+   */
+  const iniciarArraste = (ev: React.PointerEvent<HTMLElement>, p: Pedido, de: StatusPedido) => {
+    if (ev.button !== 0 || window.matchMedia('(max-width: 767px)').matches) return;
+    const r = ev.currentTarget.getBoundingClientRect();
+    const x0 = ev.clientX;
+    const y0 = ev.clientY;
+    const toque = ev.pointerType !== 'mouse';
+    let ativo = false;
+    let ultimo: StatusPedido | null = null;
+    const colEm = (x: number, y: number) => ((document.elementFromPoint(x, y)?.closest('[data-col]') as HTMLElement | null)?.dataset.col as StatusPedido) ?? null;
+    const comecar = (x: number, y: number) => {
+      ativo = true;
+      arrastou.current = true;
+      setArraste({ p, de, x, y, ox: x0 - r.left, oy: y0 - r.top, w: r.width });
+      if (toque) navigator.vibrate?.(12);
+    };
+    const mover = (x: number, y: number) => {
+      setArraste((a) => a && { ...a, x, y });
+      ultimo = colEm(x, y);
+      setSobre(ultimo);
+      // perto da borda do quadro, rola para o lado
+      const k = kanban.current;
+      if (k) {
+        const b = k.getBoundingClientRect();
+        if (x > b.right - 70) k.scrollLeft += 14;
+        else if (x < b.left + 70) k.scrollLeft -= 14;
+      }
+    };
+    const terminar = (soltou: boolean) => {
+      clearTimeout(segurar);
+      window.removeEventListener('pointermove', pm);
+      window.removeEventListener('pointerup', pu);
+      window.removeEventListener('pointercancel', pc);
+      window.removeEventListener('touchmove', tm);
+      window.removeEventListener('touchend', te);
+      if (ativo) {
+        setArraste(null);
+        setSobre(null);
+        if (soltou) soltar(p, de, ultimo);
+        setTimeout(() => (arrastou.current = false), 0);
+      }
+    };
+    const pm = (e: PointerEvent) => {
+      if (toque) return;
+      if (!ativo && Math.hypot(e.clientX - x0, e.clientY - y0) > 6) comecar(e.clientX, e.clientY);
+      if (ativo) mover(e.clientX, e.clientY);
+    };
+    const pu = () => !toque && terminar(true);
+    const pc = () => !toque && terminar(false);
+    const tm = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      if (!ativo) {
+        if (Math.hypot(t.clientX - x0, t.clientY - y0) > 8) terminar(false); // é rolagem, não arraste
+        return;
+      }
+      e.preventDefault();
+      mover(t.clientX, t.clientY);
+    };
+    const te = () => terminar(true);
+    const segurar = toque ? window.setTimeout(() => comecar(x0, y0), 300) : 0;
+    window.addEventListener('pointermove', pm);
+    window.addEventListener('pointerup', pu);
+    window.addEventListener('pointercancel', pc);
+    if (toque) {
+      window.addEventListener('touchmove', tm, { passive: false });
+      window.addEventListener('touchend', te);
+    }
+  };
+
+  // durante o arraste não seleciona texto
+  useEffect(() => {
+    document.body.classList.toggle('arrastando', !!arraste);
+    return () => document.body.classList.remove('arrastando');
+  }, [arraste]);
   const [importar, setImportar] = useState(false);
   const [colMob, setColMob] = useState<StatusPedido>('producao');
 
@@ -80,20 +195,30 @@ export function PedidosView() {
         ))}
       </div>
 
-      <div className="kanban">
+      <div className={`kanban${arraste ? ' em-arraste' : ''}`} ref={kanban}>
         {COLS.map((c) => {
           const lista = c === 'expedido' ? grupos[c].slice(0, 8) : grupos[c];
           const vol = grupos[c].reduce((s, p) => s + volumePedido(p), 0);
+          const aceita = arraste && DESTINO[arraste.de] === c;
+          const cls = arraste ? (aceita ? ' aceita' : c === arraste.de ? '' : ' recusa') + (sobre === c && c !== arraste.de ? ' sobre' : '') : '';
           return (
-            <section key={c} className={`col${colMob === c ? ' show' : ''}`} aria-label={STATUS_PED[c].label}>
+            <section key={c} data-col={c} className={`col${colMob === c ? ' show' : ''}${cls}`} aria-label={STATUS_PED[c].label}>
               <div className="col-head">
                 <span className="dot" style={{ background: STATUS_PED[c].cor }} />
                 <h3>{STATUS_PED[c].label}</h3>
                 <span className="n">{grupos[c].length}</span>
                 {c !== 'expedido' && <span className="vol">{fmtVol(vol)}</span>}
               </div>
+              {aceita && <div className="col-solte">{c === 'fila' ? 'Solte para abrir a análise e liberar' : 'Solte para marcar como expedido'}</div>}
               {lista.map((p) => (
-                <CardPedido key={p.id} p={p} pos={c === 'expedido' || c === 'pronto' ? null : posFila(p.id)} onClick={() => abrirPedido(p.id)} />
+                <CardPedido
+                  key={p.id}
+                  p={p}
+                  pos={c === 'expedido' || c === 'pronto' ? null : posFila(p.id)}
+                  arrastando={arraste?.p.id === p.id}
+                  onPointerDown={(ev) => iniciarArraste(ev, p, c)}
+                  onClick={() => !arrastou.current && abrirPedido(p.id)}
+                />
               ))}
               {c === 'expedido' && grupos[c].length > 8 && <div className="col-mais">e mais {grupos[c].length - 8} expedidos</div>}
               {!lista.length && <div className="col-vazio">{q ? 'Nenhum pedido com essa busca.' : VAZIO_COL[c]}</div>}
@@ -101,18 +226,28 @@ export function PedidosView() {
           );
         })}
       </div>
+      {arraste && (
+        <div className="pcard-fantasma" style={{ left: arraste.x - arraste.ox, top: arraste.y - arraste.oy, width: arraste.w }} aria-hidden="true">
+          <CardPedido p={arraste.p} pos={null} onClick={() => {}} />
+        </div>
+      )}
       {importar && <ImportarModal onClose={() => setImportar(false)} />}
     </main>
   );
 }
 
-function CardPedido({ p, pos, onClick }: { p: Pedido; pos: number | null; onClick: () => void }) {
+function CardPedido({ p, pos, onClick, onPointerDown, arrastando }: { p: Pedido; pos: number | null; onClick: () => void; onPointerDown?: (ev: React.PointerEvent<HTMLElement>) => void; arrastando?: boolean }) {
   const { e, agenda, agora } = useApp();
   const st = statusPedido(e, p);
   const est = agenda.pedidos.get(p.id);
   const pr = situacaoPrazo(e, p, est, agora);
   return (
-    <button className={`pcard${pr.tipo === 'atrasado' && st !== 'expedido' ? ' late' : ''}`} onClick={onClick}>
+    <button
+      className={`pcard${pr.tipo === 'atrasado' && st !== 'expedido' ? ' late' : ''}${arrastando ? ' origem' : ''}${DESTINO[st] ? ' movel' : ''}`}
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      title={DESTINO[st] ? (st === 'pcp' ? 'Clique para analisar · arraste para a Fila para liberar' : 'Arraste para Expedido para marcar como expedido') : undefined}
+    >
       <div className="pcard-top">
         {pos && <span className="prio" title="Posição na fila de prioridade">{pos}º</span>}
         <span className="nped">#{p.numero}</span>
