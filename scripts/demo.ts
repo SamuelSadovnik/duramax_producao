@@ -14,8 +14,8 @@
 import { parseArgs } from 'node:util';
 import { db } from '../server/db.js';
 import { mutar } from '../server/estado.js';
-import { decidirItens, expedirPedido, importarPedidos } from '../shared/acoes.js';
-import { filaOrdenada, liberarPedido, mudarStatusOP, MOTIVOS } from '../shared/engine.js';
+import { importarPedidos } from '../shared/acoes.js';
+import { expedirMetade, rng, simularFabrica } from './simulacao.js';
 import { proximoExpediente, somarExpediente, subtrairExpediente } from '../shared/calendar.js';
 import type { PedidoLido, ItemLido } from '../shared/parse.js';
 import type { Estado } from '../shared/types.js';
@@ -59,15 +59,6 @@ const CLIENTES: [string, string, string][] = [
 ];
 const VENDEDORES = ['TESTE Vendedor Ana', 'TESTE Vendedor Bruno', 'TESTE Vendedor Carla'];
 const EMB = [3.6, 18, 0.9];
-
-/** gerador pseudoaleatório fixo: os dados saem sempre iguais */
-function rng(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 2 ** 32;
-  };
-}
 
 function limpar(e: Estado): Estado {
   const pedidos = e.pedidos.filter((p) => !ehTeste.pedido(p.numero));
@@ -117,60 +108,9 @@ function criar(e0: Estado, agora: Date): Estado {
   for (const p of pedidos) e = importarPedidos(e, [{ pedido: p.lido }], p.entrada, 'Teste').estado;
 
   // simulação do chão: 2 OPs ao mesmo tempo, na ordem da fila; só OPs de teste
-  const pend = pedidos.filter((p) => p.liberar && p.liberar < agora).sort((a, b) => a.liberar!.getTime() - b.liberar!.getTime());
-  const liberarAte = (t: Date) => {
-    while (pend.length && pend[0].liberar! <= t) {
-      const p = pend.shift()!;
-      const id = `p${p.lido.numero}`;
-      const ped = e.pedidos.find((x) => x.id === id)!;
-      // uma parte dos itens sai do estoque, o resto vira OP
-      const estoque = ped.itens.filter(() => r() < 0.2).map((i) => i.id);
-      e = decidirItens(e, id, ped.itens.map((i) => i.id), 'op');
-      if (estoque.length < ped.itens.length) e = decidirItens(e, id, estoque, 'estoque');
-      e = liberarPedido(e, id, p.liberar!, 'Teste');
-    }
-  };
-  // horário em que cada um dos 2 postos fica livre; null = ocupado com uma OP que segue em produção agora
-  const slots: (Date | null)[] = [inicio, somarExpediente(inicio, 45, fer)];
-  for (let passo = 0; passo < 600; passo++) {
-    const livres = slots.map((d, i) => [d, i] as const).filter((x): x is readonly [Date, number] => x[0] !== null);
-    if (!livres.length) break;
-    const k = livres.reduce((m, x) => (x[0] < m[0] ? x : m))[1];
-    const t = proximoExpediente(slots[k]!, fer);
-    if (t >= agora) {
-      slots[k] = null;
-      continue;
-    }
-    liberarAte(t);
-    const prox = filaOrdenada(e).find((o) => ehTeste.produto(o.produtoId));
-    if (!prox) {
-      if (!pend.length || pend[0].liberar! >= agora) {
-        slots[k] = null; // posto parado: não há mais o que produzir
-        continue;
-      }
-      slots[k] = pend[0].liberar!;
-      continue;
-    }
-    const sorte = r();
-    const fator = sorte < 0.62 ? 0.82 + r() * 0.24 : sorte < 0.85 ? 1.12 + r() * 0.2 : 1.35 + r() * 0.5;
-    const fim = somarExpediente(t, Math.round(prox.tempoPadraoMin * fator), fer);
-    e = mudarStatusOP(e, prox.id, 'iniciar', t, { por: 'Teste' }, t);
-    if (fim < subtrairExpediente(agora, 10, fer)) {
-      const passou = fator > 1 + e.config.toleranciaPct / 100;
-      e = mudarStatusOP(e, prox.id, 'finalizar', fim, { motivo: passou ? escolha(MOTIVOS.slice(0, 6)) : undefined, por: 'Teste' }, fim);
-      slots[k] = somarExpediente(fim, 15, fer);
-    } else {
-      slots[k] = null; // continua produzindo agora
-    }
-  }
-
-  // metade dos pedidos prontos há mais de meio dia já foi expedida
-  const prontos = e.pedidos.filter((p) => ehTeste.pedido(p.numero) && p.prontoEm && !p.expedidoEm);
-  prontos.forEach((p, i) => {
-    const em = somarExpediente(new Date(p.prontoEm!), 180, fer);
-    if (i % 2 === 0 && em < agora) e = expedirPedido(e, p.id, em, 'Teste');
-  });
-  return e;
+  e = simularFabrica(e, pedidos.map((p) => ({ id: `p${p.lido.numero}`, liberar: p.liberar })), inicio, agora, r, (o) => ehTeste.produto(o.produtoId));
+  // metade dos pedidos prontos já foi expedida
+  return expedirMetade(e, agora, ehTeste.pedido);
 }
 
 async function main() {
