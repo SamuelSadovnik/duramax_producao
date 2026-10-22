@@ -1,34 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { pode, useApp } from './store';
-import { Icon, PrazoChip, Vazio } from './ui';
-import { calcularAgenda, liberarPedido, planejar, prazoDoPedido, produtosSemParametro, situacaoPrazo, statusPedido, temParametros, volumePedido, type LinhaPlano } from '../shared/engine';
+import { Icon } from './ui';
+import { calcularAgenda, liberarPedido, planejar, prazoDoPedido, produtosSemParametro, situacaoPrazo, temParametros, type LinhaPlano } from '../shared/engine';
 import { CamposParam } from './ParamProduto';
 import { dataISOparaBR, fmtDur, fmtVol, nf, quando, titulo } from '../shared/fmt';
 import type { Decisao, Pedido } from '../shared/types';
 import { nomeLinha } from '../shared/catalog';
 import { api } from './api';
 
-export function PCPView() {
-  const { e, executar, abrirPedido, perfil, toast } = useApp();
-  const [q, setQ] = useState('');
-  const pend = useMemo(() => {
-    const ql = q.trim().toLowerCase();
-    const lista = e.pedidos
-      .filter((p) => statusPedido(e, p) === 'pcp')
-      .filter((p) => !ql || `${p.numero} ${p.fantasia} ${p.cliente} ${p.cidade}`.toLowerCase().includes(ql));
-    const prazo = (p: Pedido) => prazoDoPedido(e, p);
-    // o prazo mais curto aparece primeiro; empate fica com quem entrou antes
-    return lista.sort((a, b) => prazo(a).localeCompare(prazo(b)) || a.importadoEm.localeCompare(b.importadoEm));
-  }, [e, q]);
-  const total = useMemo(() => e.pedidos.filter((p) => statusPedido(e, p) === 'pcp').length, [e]);
-  const [selId, setSel] = useState<string | null>(pend[0]?.id ?? null);
-  useEffect(() => {
-    if (!pend.find((p) => p.id === selId)) setSel(pend[0]?.id ?? null);
-  }, [pend, selId]);
-  const sel = pend.find((p) => p.id === selId);
+/**
+ * Análise do PCP de um pedido: decidir o que sai do estoque e o que vira OP, e liberar.
+ * Abre como subtela (gaveta) quando se clica num pedido "Aguardando PCP" na tela de Pedidos.
+ */
+export function AnalisePCP({ p, onLiberado }: { p: Pedido; onLiberado?: () => void }) {
+  const { e, executar, perfil, toast } = useApp();
   const somenteVer = !pode.decidirPCP(perfil);
-
-  const liberar = async (p: Pedido) => {
+  const liberar = async () => {
     const antes = e.ops.length;
     let n = 0;
     const ok = await executar(async () => {
@@ -36,65 +23,15 @@ export function PCPView() {
       n = r.estado.ops.length - antes;
       return r;
     });
-    if (ok) toast({ texto: `Pedido #${p.numero} liberado: ${n} OP(s) nova(s) enviadas para a produção.`, tipo: 'ok' });
+    if (ok) {
+      toast({ texto: `Pedido #${p.numero} liberado: ${n} OP(s) nova(s) enviadas para a produção.`, tipo: 'ok' });
+      onLiberado?.();
+    }
   };
-
-  return (
-    <main className="page">
-      <div className="page-head">
-        <div>
-          <h1>Análise do PCP</h1>
-          <p>Escolha o pedido, defina o que sai do estoque e o que vira OP, e libere para a produção.</p>
-        </div>
-      </div>
-
-      {!total ? (
-        <div className="panel">
-          <Vazio icone="pcp" titulo="Nenhum pedido aguardando análise">Quando o comercial importar um PDF, ele aparece aqui.</Vazio>
-        </div>
-      ) : (
-        <div className="pcp2">
-          <section className="panel pcp2-lista" aria-label="Pedidos aguardando análise">
-            <div className="pcp2-lista-topo">
-              <div className="pcp2-lista-tit">
-                <b>Aguardando</b>
-                <span className="contador">{total}</span>
-              </div>
-              <label className="search">
-                <Icon n="search" s={15} />
-                <span className="sr">Buscar</span>
-                <input id="busca-pcp" className="input" placeholder="Nº ou cliente" value={q} onChange={(ev) => setQ(ev.target.value)} />
-              </label>
-            </div>
-            <div className="pcp2-itens">
-              {pend.map((p) => {
-                const decididos = p.itens.filter((i) => i.decisao !== 'pendente').length;
-                return (
-                  <button key={p.id} className={`pcp2-ped${p.id === selId ? ' sel' : ''}`} onClick={() => setSel(p.id)} aria-current={p.id === selId}>
-                    <span className="l1">
-                      <span className="mono">#{p.numero}</span>
-                      <span className="num muted">{fmtVol(volumePedido(p))}</span>
-                    </span>
-                    <span className="l2">{titulo(p.fantasia)}</span>
-                    <span className="l3">
-                      <PrazoChip p={p} />
-                      <span className="muted num">{decididos ? `${decididos}/${p.itens.length} decididos` : `${p.itens.length} itens`}</span>
-                    </span>
-                  </button>
-                );
-              })}
-              {!pend.length && <Vazio compacto icone="search" titulo="Nenhum pedido com essa busca" />}
-            </div>
-          </section>
-
-          {sel && <Analise key={sel.id} p={sel} somenteVer={somenteVer} onLiberar={() => liberar(sel)} abrir={() => abrirPedido(sel.id)} />}
-        </div>
-      )}
-    </main>
-  );
+  return <Analise p={p} somenteVer={somenteVer} onLiberar={liberar} />;
 }
 
-function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: () => Promise<void>; somenteVer: boolean; abrir: () => void }) {
+function Analise({ p, onLiberar, somenteVer }: { p: Pedido; onLiberar: () => Promise<void>; somenteVer: boolean }) {
   const { e, executar, agora, perfil } = useApp();
   const [ocupado, setOcupado] = useState(false);
   const [aberto, setAberto] = useState<Record<string, boolean>>({});
@@ -148,11 +85,6 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
     <section className="pcp2-det" aria-label={`Pedido ${p.numero}`}>
       <div className="panel pcp2-cab">
         <div className="pcp2-cab-l">
-          <div className="pcp2-cab-n">
-            <span className="mono">#{p.numero}</span>
-            <PrazoChip p={p} />
-          </div>
-          <h2>{titulo(p.fantasia)}</h2>
           <div className="pcp2-meta">
             <span>{titulo(p.cidade)}/{p.uf}</span>
             <span>{titulo(p.vendedor)}</span>
@@ -161,7 +93,6 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
           </div>
         </div>
         <div className="pcp2-cab-a">
-          <button className="btn ghost" onClick={abrir}>Ver pedido</button>
           {!somenteVer && (
             <>
               <button className="btn" disabled={ocupado} onClick={() => decidir(todos, 'estoque')}><Icon n="box" s={15} /> Tudo do estoque</button>
@@ -203,13 +134,13 @@ function Analise({ p, onLiberar, somenteVer, abrir }: { p: Pedido; onLiberar: ()
 
       <div className="panel flush">
         <div className="scroll-x">
-          <table className="t pcp2-t cartoes">
+          <table className="t pcp2-t cartoes-tab">
             <thead>
               <tr>
                 <th>Produto</th>
-                <th className="r" style={{ width: 110 }}>Volume</th>
-                <th style={{ width: 268 }}>Decisão</th>
-                <th style={{ width: '36%' }}>Plano de produção</th>
+                <th className="r" style={{ width: 92 }}>Volume</th>
+                <th style={{ width: 256 }}>Decisão</th>
+                <th style={{ width: '41%' }}>Plano de produção</th>
               </tr>
             </thead>
             {linhas.map((ln) => (

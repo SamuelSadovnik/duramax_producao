@@ -9,6 +9,7 @@ import { lerPedido, type PedidoLido } from '../shared/parse';
 import { somarDiasUteis } from '../shared/calendar';
 import { api } from './api';
 import { pode } from './store';
+import { AnalisePCP } from './PCP';
 
 const COLS: StatusPedido[] = ['pcp', 'fila', 'producao', 'pronto', 'expedido'];
 const VAZIO_COL: Record<StatusPedido, string> = {
@@ -296,9 +297,12 @@ function ImportarModal({ onClose }: { onClose: () => void }) {
 export function DetalhePedido() {
   const { e, executar, agenda, agora, pedidoAberto, abrirPedido, perfil } = useApp();
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
+  const [aba, setAba] = useState<'analise' | 'detalhes'>('analise');
   const p = e.pedidos.find((x) => x.id === pedidoAberto);
   if (!p) return null;
   const st = statusPedido(e, p);
+  // pedido aguardando o PCP abre direto na análise (decidir estoque/OP e liberar)
+  const analise = st === 'pcp' && aba === 'analise';
   const est = agenda.pedidos.get(p.id);
   const ops = opsDoPedido(e, p.id);
   const fechar = () => abrirPedido(null);
@@ -317,20 +321,32 @@ export function DetalhePedido() {
   return (
     <>
       <div className="scrim" onClick={fechar} />
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={`Pedido ${p.numero}`}>
+      <aside className={`drawer${st === 'pcp' ? ' largo' : ''}`} role="dialog" aria-modal="true" aria-label={`Pedido ${p.numero}`}>
         <div className="drawer-head">
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span className="mono" style={{ fontWeight: 600 }}>Pedido #{p.numero}</span>
               <span className="chip" style={{ color: STATUS_PED[st].cor }}>{STATUS_PED[st].label}</span>
+              {st === 'pcp' && <PrazoChip p={p} />}
             </div>
             <h2>{titulo(p.fantasia)}</h2>
             <div className="muted" style={{ fontSize: 12.5 }}>{titulo(p.cliente)}</div>
+            {st === 'pcp' && (
+              <div className="seg drawer-abas" role="tablist" aria-label="Ver">
+                <button role="tab" aria-pressed={aba === 'analise'} aria-selected={aba === 'analise'} onClick={() => setAba('analise')}>Análise do PCP</button>
+                <button role="tab" aria-pressed={aba === 'detalhes'} aria-selected={aba === 'detalhes'} onClick={() => setAba('detalhes')}>Detalhes e histórico</button>
+              </div>
+            )}
           </div>
           <button className="btn ghost icon" onClick={fechar} aria-label="Fechar">
             <Icon n="x" />
           </button>
         </div>
+        {analise ? (
+          <div className="drawer-body">
+            <AnalisePCP p={p} />
+          </div>
+        ) : (
         <div className="drawer-body">
           <div className="panel resumo-ped">
             <div style={{ flex: '1 1 220px' }}>
@@ -451,6 +467,7 @@ export function DetalhePedido() {
           )}
           <span className="rodape-nota">Tempo total padrão das OPs: {fmtDur(ops.reduce((s, o) => s + o.tempoPadraoMin, 0))}</span>
         </div>
+        )}
       </aside>
     </>
   );

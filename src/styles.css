@@ -425,6 +425,8 @@ table.t { width: 100%; border-collapse: collapse; font-size: 13px; table-layout:
   padding-right: env(safe-area-inset-right, 0px);
 }
 .drawer-head { padding: 16px var(--pad); background: var(--surface); border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: flex-start; }
+.drawer.largo { width: min(1120px, 100%); }
+.drawer-abas { margin-top: 12px; }
 .drawer-head h2 { font-size: 21px; font-stretch: 82%; font-weight: 750; margin-top: 4px; }
 .drawer-body { overflow-y: auto; padding: 18px var(--pad) 40px; display: flex; flex-direction: column; gap: 16px; }
 /* dentro de uma coluna com altura fixa, os blocos não podem encolher (senão as tabelas somem) */
@@ -581,7 +583,8 @@ table.t { width: 100%; border-collapse: collapse; font-size: 13px; table-layout:
 .pcp2-t .pcp2-emb td:first-child { padding-left: calc(var(--pad) + 14px); }
 .plano-chips { display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 12.5px; }
 .pcp2-param { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.pcp2-param .cell-in { width: 86px; }
+.pcp2-param { flex-wrap: nowrap; }
+.pcp2-param .cell-in { width: 80px; }
 .pcp2-param .btn.sm { min-height: 34px; }
 
 /* Estoque × Produzir: dois botões de verdade, o escolhido fica colorido */

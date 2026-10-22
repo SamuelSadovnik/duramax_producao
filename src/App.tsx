@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Provider, useApp, useRelogio } from './store';
 import { Icon, Toasts } from './ui';
 import { PedidosView, DetalhePedido } from './Pedidos';
-import { PCPView } from './PCP';
 import { FilaView } from './Fila';
 import { OPsView } from './OPs';
 import { GerenteView } from './Gerente';
@@ -17,11 +16,10 @@ import { statusPedido } from '../shared/engine';
 import { dataCurta, hora } from '../shared/fmt';
 import { PERFIS, type Estado, type Perfil, type Usuario } from '../shared/types';
 
-type Tela = 'pedidos' | 'pcp' | 'fila' | 'ops' | 'chao' | 'tv' | 'dash' | 'params' | 'usuarios';
+type Tela = 'pedidos' | 'fila' | 'ops' | 'chao' | 'tv' | 'dash' | 'params' | 'usuarios';
 
 const NOMES: Record<Tela, string> = {
   pedidos: 'Pedidos',
-  pcp: 'Análise PCP',
   fila: 'Fila e previsão',
   ops: 'OPs',
   chao: 'Chão de fábrica',
@@ -32,9 +30,9 @@ const NOMES: Record<Tela, string> = {
 };
 
 const ACESSO: Record<Perfil, Tela[]> = {
-  admin: ['pedidos', 'pcp', 'fila', 'ops', 'chao', 'dash', 'params', 'usuarios', 'tv'],
-  pcp: ['pedidos', 'pcp', 'fila', 'ops', 'chao', 'dash', 'params', 'tv'],
-  comercial: ['pedidos', 'pcp', 'fila', 'ops', 'dash', 'tv'],
+  admin: ['pedidos', 'fila', 'ops', 'chao', 'dash', 'params', 'usuarios', 'tv'],
+  pcp: ['pedidos', 'fila', 'ops', 'chao', 'dash', 'params', 'tv'],
+  comercial: ['pedidos', 'fila', 'ops', 'dash', 'tv'],
   gerente: ['chao', 'tv'],
   tv: ['tv'],
 };
@@ -101,7 +99,6 @@ export function App() {
 
 const ICONES: Record<Tela, string> = {
   pedidos: 'pedidos',
-  pcp: 'pcp',
   fila: 'fila',
   ops: 'ops',
   chao: 'fabrica',
@@ -202,7 +199,7 @@ function Shell() {
             <button key={t} aria-current={tela === t ? 'page' : undefined} onClick={() => setTela(t)} title={NOMES[t]}>
               <Icon n={ICONES[t]} s={19} w={1.9} />
               <span className="sb-rot">{NOMES[t]}</span>
-              {t === 'pcp' && nPcp > 0 && <span className="sb-badge">{nPcp}</span>}
+              {t === 'pedidos' && nPcp > 0 && <span className="sb-badge" title={`${nPcp} aguardando o PCP`}>{nPcp}</span>}
             </button>
           ))}
         </nav>
@@ -242,7 +239,6 @@ function Shell() {
 
       <div className="conteudo">
         {tela === 'pedidos' && <PedidosView />}
-        {tela === 'pcp' && <PCPView />}
         {tela === 'fila' && <FilaView />}
         {tela === 'ops' && <OPsView />}
         {tela === 'chao' && <GerenteView />}
@@ -250,7 +246,7 @@ function Shell() {
         {tela === 'params' && <ParamsView />}
         {tela === 'usuarios' && <UsuariosView />}
       </div>
-      {pedidoAberto && <DetalhePedido />}
+      {pedidoAberto && <DetalhePedido key={pedidoAberto} />}
       {trocarSenha && <TrocarSenha onClose={() => setTrocarSenha(false)} />}
     </div>
   );
