@@ -128,3 +128,24 @@ npm run db:demo -- --limpar  # apaga só os dados de teste
 Os dados de teste usam apenas produtos da **Linha 900** (nome começando por `TESTE`), clientes `TESTE …`
 e pedidos a partir do número 900001. Produtos, pedidos e OPs reais não são alterados. Rodar de novo
 recria os dados de teste a partir de agora.
+
+## Limpar o banco
+
+```bash
+npm run db:limpar                # só mostra quantos pedidos, OPs e produtos existem
+npm run db:limpar -- --confirmar # apaga todos os pedidos, OPs e produtos
+```
+
+Usuários e configurações (prazo, feriados, tolerância) ficam. A numeração das OPs recomeça do 1.
+Não tem como desfazer.
+
+## Testar com pedidos de verdade
+
+```bash
+npm run db:teste -- "C:\caminho\da\pasta\com\os\pdfs"
+```
+
+Lê os PDFs de Pedido de Venda, coloca os pedidos no sistema e simula os últimos dias de produção.
+O lote e o tempo dos produtos desses pedidos são **inventados** (só para teste); os produtos que
+aparecem apenas no último pedido ficam sem, para testar o aviso do PCP. Antes de usar o sistema de
+verdade, rode `npm run db:limpar -- --confirmar`.
